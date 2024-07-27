@@ -1,0 +1,176 @@
+.App {
+     text-align: center;
+}
+
+.ui.text.container {
+    max-width: 850px!important;
+}
+
+.vu {
+    padding: 0.1em 0.5em!important;
+}
+
+.or_buttons {
+    text-align: left;
+}
+
+.auto_button {
+    float: right;
+    margin-top: -0.55rem!important;
+}
+
+.stat {
+    float: right;
+    margin-top: -0.55rem!important;
+    margin-right: 6rem!important;
+}
+
+.warning {
+    color: red!important;
+}
+
+.file_name {
+    float: right;
+    margin-top: 0.5rem!important;
+}
+
+.timer {
+    font-size: 3em!important;
+    padding: 0.2em!important;
+}
+
+.trim_files_dropdown {
+    min-width: 40em!important;
+}
+
+.datepickercs {
+    cursor: pointer!important;
+    width:130px!important;
+    height:38px!important;
+    font-size: 22px!important;
+    border-color: #396dad;
+    background-color: #ebf5fa;
+    border: 1px solid #96c9f3;
+    border-radius: .28571429rem;
+}
+
+.react-datepicker {
+    font-size: 1.3em;
+}
+.react-datepicker__header {
+    padding-top: 0.8em;
+}
+.react-datepicker__month {
+    margin: 0.4em 1em;
+}
+.react-datepicker__day-name, .react-datepicker__day {
+    width: 1.9em;
+    line-height: 1.9em;
+    margin: 0.166em;
+}
+.react-datepicker__current-month {
+    font-size: 1em;
+}
+
+.react-datepicker__month-read-view--selected-month {
+    font-size: 1.5em;
+    font-weight: bold;
+}
+
+.react-datepicker__year-read-view--selected-year {
+    font-size: 1.5em;
+    font-weight: bold;
+}
+
+.react-datepicker__day--outside-month {
+    color: silver;
+}
+.react-datepicker__navigation {
+    top: 1em;
+    line-height: 1.7em;
+    border: 0.45em solid transparent;
+}
+.react-datepicker__navigation--previous {
+    border-right-color: #ccc;
+    left: 1em;
+}
+.react-datepicker__navigation--next {
+    border-left-color: #ccc;
+    right: 1em;
+}
+.react-datepicker__day--sat {
+    color: #ac0013;
+}
+.admin_table {
+    cursor: pointer!important;
+}
+
+.monitor_tr {
+    background: #eaeaea;
+    font-weight: bolder;
+    cursor: pointer!important;
+}
+
+.settings_btn {
+    position: absolute;
+    padding: .38571429em .47571429em .48571429em!important;
+    font-size: .68571429rem!important;
+    margin-top: 8px!important;
+}
+
+.ui.table td.positive, .ui.table tr.positive {
+    background: #e1e6d4!important;
+    font-weight: bolder;
+}
+
+.webrtc .ui.table tr:hover {
+    background: #e1e6d4!important;
+}
+
+.ui.table td.active, .ui.table tr.active {
+    background: #efeff5!important;
+    color: #287ab7!important;
+}
+
+.ui[class*="very compact"].table td {
+    padding: .1em .3em!important;
+}
+
+.ui.table td.one.wide, .ui.table th.one.wide {
+    width: 2.5%;
+}
+
+.table_header {
+    background: #dad4c1;
+}
+
+.ui.table thead th {
+    padding: .2em .3em;
+}
+
+.monitor_tr .ui.input {
+    width: 110px;
+}
+
+.service {
+    padding: 0em 0em!important;
+}
+
+/*.mejs__overlay-button {*/
+/*    display: none;*/
+/*}*/
+
+/*.mejs__overlay-loading {*/
+/*    display: none;*/
+/*}*/
+
+/*.mejs__button>button {*/
+/*    font-size: 0;*/
+/*    line-height: 0;*/
+/*    margin: 10px 6px!important;*/
+/*    overflow: hidden!important;*/
+/*    padding: 0;*/
+/*    position: absolute;*/
+/*    text-decoration: none;*/
+/*    width: 20px;*/
+/*}*/
