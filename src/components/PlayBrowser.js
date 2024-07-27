@@ -46,7 +46,7 @@ class Playouts extends Component {
     lang_options: [],
     selected_lang: 7,
     video_options: [],
-    selected_video: 360,
+    selected_video: 0,
   };
 
   componentDidMount() {
@@ -63,6 +63,7 @@ class Playouts extends Component {
       hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => {
         const lang_options = [];
         const video_options = [];
+
         hls.allAudioTracks.forEach(k => {
           // Switch to hebrew
           if(k.lang === "he") {
@@ -74,11 +75,13 @@ class Playouts extends Component {
         })
         this.setState({lang_options});
 
-        hls.levels.forEach(k => {
-          const val = {key:k.height, text:k.height, value:k.height};
+        hls.levels.forEach((k,i) => {
+          const val = {key:k.height, text:k.height, value:i};
           video_options.push(val)
         })
+        hls.currentLevel = 0
         this.setState({video_options});
+
         console.log(hls.allAudioTracks)
         console.log(hls.levels)
         console.log(hls)
@@ -173,6 +176,7 @@ class Playouts extends Component {
 
   setVideo = (val) => {
     console.log(val)
+    this.state.hls.currentLevel = val;
     this.setState({selected_video: val})
   }
 
