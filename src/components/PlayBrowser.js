@@ -43,22 +43,45 @@ class Playouts extends Component {
     src: "Workflow",
     year: "2020",
     month: "01",
+    lang_options: [],
+    selected_lang: 7,
+    video_options: [],
+    selected_video: 360,
   };
 
   componentDidMount() {
     this.getWorkflow(this.state.date)
     const video = this.refs.player;
     if (Hls.isSupported()) {
-      const hls = new Hls();
+      const hls = new Hls({debug: false});
       this.setState({hls})
       //hls.loadSource(this.state.source);
       hls.attachMedia(video);
       hls.on(Hls.Events.ERROR, (err) => {
         console.log(err)
       });
-      hls.on(Hls.Events.AUDIO_TRACK_LOADED, () => {
+      hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => {
+        const lang_options = [];
+        const video_options = [];
+        hls.allAudioTracks.forEach(k => {
+          // Switch to hebrew
+          if(k.lang === "he") {
+            hls.audioTrack = k.id;
+            this.setState({selected_lang: k.id})
+          }
+          const val = {key:k.lang, text:k.name, value:k.id};
+          lang_options.push(val)
+        })
+        this.setState({lang_options});
+
+        hls.levels.forEach(k => {
+          const val = {key:k.height, text:k.height, value:k.height};
+          video_options.push(val)
+        })
+        this.setState({video_options});
         console.log(hls.allAudioTracks)
         console.log(hls.levels)
+        console.log(hls)
       });
     }
   };
@@ -141,10 +164,22 @@ class Playouts extends Component {
     mqtt.send("stop", false, "exec/service/gst-play-1/sdi");
   };
 
+
+  setLang = (val) => {
+    console.log(val)
+    this.state.hls.audioTrack = val;
+    this.setState({selected_lang: val})
+  }
+
+  setVideo = (val) => {
+    console.log(val)
+    this.setState({selected_video: val})
+  }
+
   render() {
 
     // const {playouts} = this.props;
-    const {file_data, source, status, src, files, year, month} = this.state;
+    const {file_data, lang_options, video_options, selected_lang, files, selected_video, month} = this.state;
 
     // let dec_options = Object.keys(playouts).map((id, i) => {
     //   let playout = playouts[id];
@@ -205,6 +240,30 @@ class Playouts extends Component {
                   controls
                   playsInline={true}
                 />
+                <Label attached='bottom' size='big' >
+                  <Dropdown
+                    // disabled={!id}
+                    // compact
+                    className=""
+                    selection
+                    options={lang_options}
+                    defaultValue={7}
+                    value={selected_lang}
+                    onChange={(e, {value}) => this.setLang(value)}
+                  >
+                  </Dropdown>
+                  <Dropdown
+                    // disabled={!id}
+                    // compact
+                    className=""
+                    selection
+                    options={video_options}
+                    value={selected_video}
+                    // defaultValue="Workflow"
+                    onChange={(e, {value}) => this.setVideo(value)}
+                  >
+                  </Dropdown>
+                </Label>
               </Segment>
             </GridColumn>
             <GridColumn>
@@ -299,15 +358,27 @@ class Playouts extends Component {
                       </Table.Cell>
                     </Table.Row>
                     <Table.Row>
-                      <Table.Cell>File UID</Table.Cell>
+                      <Table.Cell>Source File UID</Table.Cell>
                       <Table.Cell>
                         {file_data?.source?.converted?.file_uid}
                       </Table.Cell>
                     </Table.Row>
                     <Table.Row>
-                      <Table.Cell>SHA1</Table.Cell>
+                      <Table.Cell>Source SHA1</Table.Cell>
                       <Table.Cell>
                         {file_data?.sha1}
+                      </Table.Cell>
+                    </Table.Row>
+                    <Table.Row>
+                      <Table.Cell>Kmedia File UID</Table.Cell>
+                      <Table.Cell>
+                        {file_data?.source?.kmedia?.file_uid}
+                      </Table.Cell>
+                    </Table.Row>
+                    <Table.Row>
+                      <Table.Cell>Kmedia SHA1</Table.Cell>
+                      <Table.Cell>
+                        {file_data?.source?.kmedia?.sha1}
                       </Table.Cell>
                     </Table.Row>
                   </Table.Body>
