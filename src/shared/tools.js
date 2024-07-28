@@ -19,6 +19,7 @@ export const KC_URL = process.env.REACT_APP_KC_URL;
 //export const MQTT_URL = process.env.REACT_APP_MQTT_LCL_URL;
 export const MQTT_URL = process.env.REACT_APP_MQTT_LCL_URL;
 export const STUN_SRV_GXY = process.env.REACT_APP_STUN_SRV_GXY;
+export const MDB_UNIT_URL = process.env.REACT_APP_MDB_UNIT_URL;
 
 var p = {};
 

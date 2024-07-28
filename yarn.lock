@@ -2991,13 +2991,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"dom-walk@npm:^0.1.0":
-  version: 0.1.2
-  resolution: "dom-walk@npm:0.1.2"
-  checksum: 10c0/4d2ad9062a9423d890f8577aa202b597a6b85f9489bdde656b9443901b8b322b289655c3affefc58ec2e41931e0828dfee0a1d2db6829a607d76def5901fc5a9
-  languageName: node
-  linkType: hard
-
 "domelementtype@npm:^2.0.1, domelementtype@npm:^2.2.0":
   version: 2.3.0
   resolution: "domelementtype@npm:2.3.0"
@@ -3587,16 +3580,6 @@ __metadata:
   bin:
     glob: dist/esm/bin.mjs
   checksum: 10c0/19a9759ea77b8e3ca0a43c2f07ecddc2ad46216b786bb8f993c445aee80d345925a21e5280c7b7c6c59e860a0154b84e4b2b60321fea92cd3c56b4a7489f160e
-  languageName: node
-  linkType: hard
-
-"global@npm:^4.3.1":
-  version: 4.4.0
-  resolution: "global@npm:4.4.0"
-  dependencies:
-    min-document: "npm:^2.19.0"
-    process: "npm:^0.11.10"
-  checksum: 10c0/4a467aec6602c00a7c5685f310574ab04e289ad7f894f0f01c9c5763562b82f4b92d1e381ce6c5bbb12173e2a9f759c1b63dda6370cfb199970267e14d90aa91
   languageName: node
   linkType: hard
 
@@ -4406,16 +4389,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"mediaelement@npm:^7.0.5":
-  version: 7.0.5
-  resolution: "mediaelement@npm:7.0.5"
-  dependencies:
-    global: "npm:^4.3.1"
-    svg4everybody: "npm:^2.1.9"
-  checksum: 10c0/8849bec6c3271200660e73214f6d559fe3edff07c6629a857784ac63fee60760ebddd30951c3cdd0849d745f47b21ebcd416eb012e946cbf56126c32fd89d0ae
-  languageName: node
-  linkType: hard
-
 "memfs@npm:^4.6.0":
   version: 4.9.4
   resolution: "memfs@npm:4.9.4"
@@ -4495,15 +4468,6 @@ __metadata:
   version: 2.1.0
   resolution: "mimic-fn@npm:2.1.0"
   checksum: 10c0/b26f5479d7ec6cc2bce275a08f146cf78f5e7b661b18114e2506dd91ec7ec47e7a25bf4360e5438094db0560bcc868079fb3b1fb3892b833c1ecbf63f80c95a4
-  languageName: node
-  linkType: hard
-
-"min-document@npm:^2.19.0":
-  version: 2.19.0
-  resolution: "min-document@npm:2.19.0"
-  dependencies:
-    dom-walk: "npm:^0.1.0"
-  checksum: 10c0/783724da716fc73a51c171865d7b29bf2b855518573f82ef61c40d214f6898d7b91b5c5419e4d22693cdb78d4615873ebc3b37d7639d3dd00ca283e5a07c7af9
   languageName: node
   linkType: hard
 
@@ -6037,13 +6001,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"svg4everybody@npm:^2.1.9":
-  version: 2.1.9
-  resolution: "svg4everybody@npm:2.1.9"
-  checksum: 10c0/033ba59c4b8b3466c0abcb42bb750e255b5b245b591e5e585a6ab39baf87c19ae2269fb4921589ad94700380c46929e92a88362e180d12e7d1d1a601f27d5c2c
-  languageName: node
-  linkType: hard
-
 "tabbable@npm:^6.0.0":
   version: 6.2.0
   resolution: "tabbable@npm:6.2.0"
@@ -6535,7 +6492,6 @@ __metadata:
     html-webpack-plugin: "npm:^5.6.0"
     keycloak-js: "npm:^25.0.2"
     loglevel: "npm:^1.9.1"
-    mediaelement: "npm:^7.0.5"
     mini-css-extract-plugin: "npm:^2.9.0"
     mqtt: "npm:^5.8.1"
     process: "npm:^0.11.10"
