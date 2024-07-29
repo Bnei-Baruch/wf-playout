@@ -9,7 +9,7 @@ import {
   Dropdown,
   Grid,
   GridRow,
-  GridColumn
+  GridColumn, Button
 } from 'semantic-ui-react'
 import {getWorkflowData, langch_options, MDB_UNIT_URL, streamFetcher, toHms, vres_options} from "../shared/tools";
 
@@ -39,6 +39,7 @@ class Playouts extends Component {
     selected_lang: 7,
     video_options: [],
     selected_video: 0,
+    playlist: [],
   };
 
   componentDidMount() {
@@ -118,12 +119,33 @@ class Playouts extends Component {
     this.setState({selected_video: val})
   };
 
+  addToPlaylist = () => {
+    const {file_data, playlist} = this.state;
+    const {source_id, sha1, file_name, line: {uid}, source: {converted: {filename, file_uid, duration}}} = file_data;
+    const playraw = {source_id, sha1, file_name, uid, file_uid, duration, file_path: filename};
+    playlist.push(playraw);
+    this.setState({playlist});
+  }
+
   render() {
-    const {file_data, lang_options, video_options, selected_lang, files, selected_video, month} = this.state;
+    const {file_data, lang_options, video_options, selected_lang, files, selected_video, playlist} = this.state;
 
     let files_list = files.map((data, i) => {
       return ({ key: i, text: data.file_name, value: data })
     });
+
+    const list = playlist.map((data, i) => {
+      const {source_id, sha1, file_name, uid, file_uid, duration} = data;
+      return (
+        <Table.Row>
+          <Table.Cell>{source_id}</Table.Cell>
+          <Table.Cell>{file_name}</Table.Cell>
+          <Table.Cell>{sha1}</Table.Cell>
+          <Table.Cell>{uid}</Table.Cell>
+          <Table.Cell>{toHms(duration)}</Table.Cell>
+        </Table.Row>
+      )
+    })
 
     const src_options = [
       { key: 1, text: 'Workflow', value: 'Workflow' },
@@ -136,15 +158,15 @@ class Playouts extends Component {
 
         </Label>
 
-        <Grid columns={2} divided>
-          <GridRow stretched>
-            <GridColumn>
+        <Grid>
+          <GridRow columns={2} divided>
+            <GridColumn stretched>
               <Segment>
                 <video
                   ref='player'
                   width={640}
                   height={360}
-                  autoPlay
+                  // autoPlay
                   controls
                   playsInline={true}
                 />
@@ -190,16 +212,21 @@ class Playouts extends Component {
                     <Table.Row>
                       <Table.Cell>Source</Table.Cell>
                       <Table.Cell>
-                        <Dropdown
-                          // disabled={!id}
-                          compact
-                          className="trim_src_dropdown"
-                          selection
-                          options={src_options}
-                          defaultValue="Workflow"
-                          onChange={(e, {value}) => this.setSrc(value)}
-                        >
-                        </Dropdown>
+                        <Button
+                          disabled={!file_data}
+                          onClick={this.addToPlaylist}
+                        >Add to playlist
+                        </Button>
+                        {/*<Dropdown*/}
+                        {/*  // disabled={!id}*/}
+                        {/*  compact*/}
+                        {/*  className="trim_src_dropdown"*/}
+                        {/*  selection*/}
+                        {/*  options={src_options}*/}
+                        {/*  defaultValue="Workflow"*/}
+                        {/*  onChange={(e, {value}) => this.setSrc(value)}*/}
+                        {/*>*/}
+                        {/*</Dropdown>*/}
                       </Table.Cell>
                       <Table.Cell>Date</Table.Cell>
                       <Table.Cell>
@@ -297,6 +324,34 @@ class Playouts extends Component {
                   {/*</Table.Footer>*/}
                 </Table>
               </Segment>
+            </GridColumn>
+          </GridRow>
+          <GridRow>
+            <GridColumn>
+              <Table basic>
+                <Table.Header>
+                  <Table.Row>
+                    <Table.HeaderCell>ID</Table.HeaderCell>
+                    <Table.HeaderCell>File Name</Table.HeaderCell>
+                    <Table.HeaderCell>SHA1</Table.HeaderCell>
+                    <Table.HeaderCell>Content UID</Table.HeaderCell>
+                    <Table.HeaderCell>Duration</Table.HeaderCell>
+                  </Table.Row>
+                </Table.Header>
+
+                <Table.Body>
+                  {list}
+                </Table.Body>
+                <Table.Footer>
+                  <Table.Row>
+                    <Table.HeaderCell />
+                    <Table.HeaderCell />
+                    <Table.HeaderCell />
+                    <Table.HeaderCell />
+                    <Table.HeaderCell>Total</Table.HeaderCell>
+                  </Table.Row>
+                </Table.Footer>
+              </Table>
             </GridColumn>
           </GridRow>
         </Grid>
