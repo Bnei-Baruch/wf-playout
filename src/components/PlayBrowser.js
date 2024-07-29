@@ -125,6 +125,7 @@ class Playouts extends Component {
     const playraw = {source_id, sha1, file_name, uid, file_uid, duration, file_path: filename};
     playlist.push(playraw);
     this.setState({playlist});
+    console.log(playlist)
   }
 
   render() {
@@ -328,7 +329,7 @@ class Playouts extends Component {
           </GridRow>
           <GridRow>
             <GridColumn>
-              <Table basic>
+              <Table>
                 <Table.Header>
                   <Table.Row>
                     <Table.HeaderCell>ID</Table.HeaderCell>
@@ -347,8 +348,8 @@ class Playouts extends Component {
                     <Table.HeaderCell />
                     <Table.HeaderCell />
                     <Table.HeaderCell />
-                    <Table.HeaderCell />
-                    <Table.HeaderCell>Total</Table.HeaderCell>
+                    <Table.HeaderCell>Total:</Table.HeaderCell>
+                    <Table.HeaderCell>{toHms(playlist.map((r) => Number(r?.duration)).reduce((su, cur) => su + cur, 0))}</Table.HeaderCell>
                   </Table.Row>
                 </Table.Footer>
               </Table>
