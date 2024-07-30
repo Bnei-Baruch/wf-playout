@@ -9,9 +9,18 @@ import {
   Dropdown,
   Grid,
   GridRow,
-  GridColumn, Button
+  GridColumn, Button, Input
 } from 'semantic-ui-react'
-import {getWorkflowData, langch_options, MDB_UNIT_URL, streamFetcher, toHms, vres_options} from "../shared/tools";
+import {
+  getData,
+  getWorkflowData,
+  langch_options,
+  MDB_UNIT_URL,
+  putData,
+  streamFetcher,
+  toHms,
+  vres_options
+} from "../shared/tools";
 
 
 class Playouts extends Component {
@@ -23,6 +32,7 @@ class Playouts extends Component {
     trimmed: [],
     date: new Date().toLocaleDateString('sv'),
     startDate: new Date(),
+    playlistDate: new Date(),
     files: [],
     file_data: "",
     file_name: "",
@@ -40,9 +50,14 @@ class Playouts extends Component {
     video_options: [],
     selected_video: 0,
     playlist: [],
+    playlist_name: ""
   };
 
   componentDidMount() {
+    getData('shidur/playlist', playlist_db => {
+      console.log(playlist_db);
+      this.setState({playlist_db})
+    })
     this.getWorkflow(this.state.date);
     this.initHls();
   };
@@ -126,10 +141,24 @@ class Playouts extends Component {
     playlist.push(playraw);
     this.setState({playlist});
     console.log(playlist)
+  };
+
+  savePlaylist = () => {
+    const {playlist, playlist_name, playlistDate} = this.state;
+    const date = playlistDate.toLocaleDateString('sv')
+    const json = {[date]: playlist}
+    putData(`shidur/playlist/${playlist_name}`, json, data => {
+      console.log(":: Save playlist: ", json, data);
+    } )
+  };
+
+  setPlaylistDate = (data) => {
+    let date = data.toLocaleDateString('sv');
+    this.setState({playlistDate: data});
   }
 
   render() {
-    const {file_data, lang_options, video_options, selected_lang, files, selected_video, playlist} = this.state;
+    const {playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate} = this.state;
 
     let files_list = files.map((data, i) => {
       return ({ key: i, text: data.file_name, value: data })
@@ -345,9 +374,21 @@ class Playouts extends Component {
                 </Table.Body>
                 <Table.Footer>
                   <Table.Row>
-                    <Table.HeaderCell />
-                    <Table.HeaderCell />
-                    <Table.HeaderCell />
+                    <Table.HeaderCell><Button onClick={this.savePlaylist}>Save playlist</Button></Table.HeaderCell>
+                    <Table.HeaderCell><Input value={playlist_name} placeholder='Playlist name' onChange={(e) => {this.setState({playlist_name: e.target.value})}} /></Table.HeaderCell>
+                    <Table.HeaderCell>
+                      <DatePicker
+                        className="datepickercs"
+                        dateFormat="yyyy-MM-dd"
+                        // locale={he}
+                        showYearDropdown
+                        showMonthDropdown
+                        scrollableYearDropdown
+                        maxDate={new Date()}
+                        selected={playlistDate}
+                        onChange={this.setPlaylistDate}
+                      />
+                    </Table.HeaderCell>
                     <Table.HeaderCell>Total:</Table.HeaderCell>
                     <Table.HeaderCell>{toHms(playlist.map((r) => Number(r?.duration)).reduce((su, cur) => su + cur, 0))}</Table.HeaderCell>
                   </Table.Row>
