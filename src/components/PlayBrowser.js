@@ -50,7 +50,10 @@ class Playouts extends Component {
     video_options: [],
     selected_video: 0,
     playlist: [],
-    playlist_name: ""
+    playlist_name: "",
+    playlist_db: {},
+    playlist_options: [],
+    selected_playlist: "",
   };
 
   componentDidMount() {
@@ -145,8 +148,9 @@ class Playouts extends Component {
 
   savePlaylist = () => {
     const {playlist, playlist_name, playlistDate} = this.state;
-    const date = playlistDate.toLocaleDateString('sv')
-    const json = {[date]: playlist}
+    const date = playlistDate.toLocaleDateString('sv');
+    const total = toHms(playlist.map((r) => Number(r?.duration)).reduce((su, cur) => su + cur, 0));
+    const json = {playlist, date, total}
     putData(`shidur/playlist/${playlist_name}`, json, data => {
       console.log(":: Save playlist: ", json, data);
     } )
@@ -155,10 +159,20 @@ class Playouts extends Component {
   setPlaylistDate = (data) => {
     let date = data.toLocaleDateString('sv');
     this.setState({playlistDate: data});
+  };
+
+  editPlaylist = (selected_playlist) => {
+    this.setState({selected_playlist});
+  };
+
+  loadPlaylist = () => {
+    const {selected_playlist, playlist_db} = this.state;
+    const playlist = playlist_db[selected_playlist]["playlist"];
+    this.setState({playlist});
   }
 
   render() {
-    const {playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate} = this.state;
+    const {selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate} = this.state;
 
     let files_list = files.map((data, i) => {
       return ({ key: i, text: data.file_name, value: data })
@@ -175,6 +189,10 @@ class Playouts extends Component {
           <Table.Cell>{toHms(duration)}</Table.Cell>
         </Table.Row>
       )
+    });
+
+    const playlist_options = Object.keys(playlist_db).map((k) => {
+      return ({key: k, text: k, value: k})
     })
 
     const src_options = [
@@ -361,17 +379,26 @@ class Playouts extends Component {
               <Table>
                 <Table.Header>
                   <Table.Row>
-                    <Table.HeaderCell>ID</Table.HeaderCell>
-                    <Table.HeaderCell>File Name</Table.HeaderCell>
-                    <Table.HeaderCell>SHA1</Table.HeaderCell>
-                    <Table.HeaderCell>Content UID</Table.HeaderCell>
-                    <Table.HeaderCell>Duration</Table.HeaderCell>
+                    <Table.HeaderCell>
+                      <Button onClick={this.loadPlaylist}>Load playlist</Button>
+                    </Table.HeaderCell>
+                    <Table.HeaderCell>
+                      <Dropdown
+                        // disabled={!id}
+                        // compact
+                        className=""
+                        selection
+                        options={playlist_options}
+                        value={selected_playlist}
+                        onChange={(e, {value}) => this.editPlaylist(value)}
+                      >
+                      </Dropdown>
+                    </Table.HeaderCell>
+                    <Table.HeaderCell></Table.HeaderCell>
+                    <Table.HeaderCell></Table.HeaderCell>
+                    <Table.HeaderCell></Table.HeaderCell>
                   </Table.Row>
                 </Table.Header>
-
-                <Table.Body>
-                  {list}
-                </Table.Body>
                 <Table.Footer>
                   <Table.Row>
                     <Table.HeaderCell><Button onClick={this.savePlaylist}>Save playlist</Button></Table.HeaderCell>
@@ -393,6 +420,46 @@ class Playouts extends Component {
                     <Table.HeaderCell>{toHms(playlist.map((r) => Number(r?.duration)).reduce((su, cur) => su + cur, 0))}</Table.HeaderCell>
                   </Table.Row>
                 </Table.Footer>
+              </Table>
+            </GridColumn>
+          </GridRow>
+          <GridRow>
+            <GridColumn>
+              <Table>
+                <Table.Header>
+                  <Table.Row>
+                    <Table.HeaderCell>ID</Table.HeaderCell>
+                    <Table.HeaderCell>File Name</Table.HeaderCell>
+                    <Table.HeaderCell>SHA1</Table.HeaderCell>
+                    <Table.HeaderCell>Content UID</Table.HeaderCell>
+                    <Table.HeaderCell>Duration</Table.HeaderCell>
+                  </Table.Row>
+                </Table.Header>
+
+                <Table.Body>
+                  {list}
+                </Table.Body>
+                {/*<Table.Footer>*/}
+                {/*  <Table.Row>*/}
+                {/*    <Table.HeaderCell><Button onClick={this.savePlaylist}>Save playlist</Button></Table.HeaderCell>*/}
+                {/*    <Table.HeaderCell><Input value={playlist_name} placeholder='Playlist name' onChange={(e) => {this.setState({playlist_name: e.target.value})}} /></Table.HeaderCell>*/}
+                {/*    <Table.HeaderCell>*/}
+                {/*      <DatePicker*/}
+                {/*        className="datepickercs"*/}
+                {/*        dateFormat="yyyy-MM-dd"*/}
+                {/*        // locale={he}*/}
+                {/*        showYearDropdown*/}
+                {/*        showMonthDropdown*/}
+                {/*        scrollableYearDropdown*/}
+                {/*        maxDate={new Date()}*/}
+                {/*        selected={playlistDate}*/}
+                {/*        onChange={this.setPlaylistDate}*/}
+                {/*      />*/}
+                {/*    </Table.HeaderCell>*/}
+                {/*    <Table.HeaderCell>Total:</Table.HeaderCell>*/}
+                {/*    <Table.HeaderCell>{toHms(playlist.map((r) => Number(r?.duration)).reduce((su, cur) => su + cur, 0))}</Table.HeaderCell>*/}
+                {/*  </Table.Row>*/}
+                {/*</Table.Footer>*/}
               </Table>
             </GridColumn>
           </GridRow>
