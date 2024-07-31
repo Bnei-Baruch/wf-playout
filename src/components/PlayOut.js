@@ -48,14 +48,16 @@ class Monitor extends Component {
       console.log(":: Got streamer: ",streamer);
       const {encoders,decoders,captures,playouts,workflows,restream} = streamer;
       this.setState({encoders,decoders,captures,playouts,workflows,restream,streamer});
+      const user = {id: "asdfaefadsfdfa234234", email: "mail@mail.com"}
       mqtt.init(user, (data) => {
         console.log("[mqtt] init: ", data);
         const watch = 'exec/service/data/#';
         const local = true
         const topic = local ? watch : 'bb/' + watch;
         mqtt.join(topic);
+        this.getStat()
         mqtt.watch((message, topic) => {
-          this.cap?.onMqttMessage(message, topic);
+          this.onMqttMessage(message, topic);
         }, false)
       })
     });
@@ -66,54 +68,33 @@ class Monitor extends Component {
     const allow = kc.hasRealmRole("shidur_root");
     if(allow) {
       this.setState({allow});
-      getData(`streamer`, (streamer) => {
-        console.log(":: Got streamer: ",streamer);
-        this.setState({streamer});
-        mqtt.init(user, (data) => {
-          console.log("[mqtt] init: ", data);
-          const exec_status = 'exec/status/#';
-          const wf_status = 'workflow/status/#';
-          const janus_status = 'janus/+/status';
-          mqtt.join(exec_status);
-          mqtt.join(janus_status);
-          mqtt.join(wf_status);
-          mqtt.watch((message, topic) => {
-            this.onMqttMessage(message, topic);
-          }, false)
-        })
-      });
     } else {
       this.setState({allow: false});
     }
   };
 
+  getStat = () => {
+    mqtt.send("status", false, "exec/service/gst-play-1/sdi");
+  };
+
   onMqttMessage = (message, topic) => {
-    //console.log("[encoders] Message: ", message, topic.split("/")[2]);
-    const {status, workflow, galaxy, stream, janus} = this.state;
-    const id = topic.split("/")[2]
-    const root = topic.split("/")[0]
-    switch (root) {
-      case 'exec' :
-        status[id] = message === "Online";
-        this.setState({status});
-        break;
-      case 'workflow' :
-        workflow[id] = message === "Online";
-        this.setState({workflow});
-        break;
-      case 'janus' :
-        const n = topic.split("/")[1];
-        if(n.match(/^(gxy(\d+))$/)) {
-          galaxy[n] = message.online;
-          this.setState({galaxy});
-        } else if(n.match(/^(str(\d))$/)) {
-          stream[n] = message.online;
-          this.setState({stream});
-        } else {
-          janus[n] = message.online;
-          this.setState({janus});
-        }
+    const local = true
+    const src = local ? topic.split("/")[3] : topic.split("/")[4];
+    console.log("[playout] Message: ", message);
+    if(message.action === "status") {
+      const status = message.data.alive ? "On" : "Off";
+      this.setState({status});
     }
+  };
+
+  startPlayout = () => {
+    this.setState({status: "On"});
+    mqtt.send("start", false, "exec/service/gst-play-1/sdi");
+  };
+
+  stopPlayout = () => {
+    this.setState({status: "Off", file_name: null});
+    mqtt.send("stop", false, "exec/service/gst-play-1/sdi");
   };
 
   loadPlaylist = () => {
@@ -134,7 +115,7 @@ class Monitor extends Component {
     const list = playlist.map((data, i) => {
       const {source_id, sha1, file_name, uid, file_uid, duration} = data;
       return (
-        <Table.Row>
+        <Table.Row key={i}>
           <Table.Cell>{source_id}</Table.Cell>
           <Table.Cell>{file_name}</Table.Cell>
           <Table.Cell>{sha1}</Table.Cell>

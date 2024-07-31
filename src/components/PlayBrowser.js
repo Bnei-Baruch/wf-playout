@@ -181,7 +181,7 @@ class Playouts extends Component {
     const list = playlist.map((data, i) => {
       const {source_id, sha1, file_name, uid, file_uid, duration} = data;
       return (
-        <Table.Row>
+        <Table.Row key={i}>
           <Table.Cell>{source_id}</Table.Cell>
           <Table.Cell>{file_name}</Table.Cell>
           <Table.Cell>{sha1}</Table.Cell>
