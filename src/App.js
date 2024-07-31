@@ -3,6 +3,7 @@ import {Segment} from 'semantic-ui-react'
 import 'fomantic-ui-css/semantic.min.css';
 import './App.css';
 import PlayBrowser from "./components/PlayBrowser";
+import PlayOut from "./components/PlayOut";
 
 class App extends Component {
 
@@ -12,7 +13,8 @@ class App extends Component {
 
     return (
         <Segment basic>
-            <PlayBrowser />
+            {/*<PlayBrowser />*/}
+            <PlayOut />
         </Segment>
     );
   }
