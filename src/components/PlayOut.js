@@ -15,7 +15,7 @@ import {
 import mqtt from "../shared/mqtt";
 import {kc} from "./UserManager";
 import LoginPage from "./LoginPage";
-import {getData, MDB_UNIT_URL, toHms} from "../shared/tools";
+import {getData, MDB_UNIT_URL, putData, toHms} from "../shared/tools";
 import DatePicker from "react-datepicker";
 
 
@@ -28,15 +28,17 @@ class Monitor extends Component {
     galaxy: {},
     stream: {},
     janus: {},
-    status: {},
+    status: "Off",
     user: null,
     playlist: [],
     playlist_name: "",
     playlist_db: {},
     playlist_options: [],
+    playlist_index: 0,
     selected_playlist: "",
     file_data: "",
     playlistDate: new Date(),
+    playback_timer: 0,
   };
 
   componentDidMount() {
@@ -44,10 +46,9 @@ class Monitor extends Component {
       console.log(playlist_db);
       this.setState({playlist_db})
     })
-    getData(`streamer`, (streamer) => {
-      console.log(":: Got streamer: ",streamer);
-      const {encoders,decoders,captures,playouts,workflows,restream} = streamer;
-      this.setState({encoders,decoders,captures,playouts,workflows,restream,streamer});
+    getData(`streamer/playouts/gst-play-1`, (playout) => {
+      console.log(":: Got playout: ",playout);
+      this.setState({playout});
       const user = {id: "asdfaefadsfdfa234234", email: "mail@mail.com"}
       mqtt.init(user, (data) => {
         console.log("[mqtt] init: ", data);
@@ -55,7 +56,8 @@ class Monitor extends Component {
         const local = true
         const topic = local ? watch : 'bb/' + watch;
         mqtt.join(topic);
-        this.getStat()
+        //this.getStat()
+        //this.runTimer();
         mqtt.watch((message, topic) => {
           this.onMqttMessage(message, topic);
         }, false)
@@ -80,21 +82,36 @@ class Monitor extends Component {
   onMqttMessage = (message, topic) => {
     const local = true
     const src = local ? topic.split("/")[3] : topic.split("/")[4];
-    console.log("[playout] Message: ", message);
     if(message.action === "status") {
+      console.log("[playout] Message: ", message);
       const status = message.data.alive ? "On" : "Off";
-      this.setState({status});
+      const out_time = toHms(message.data.runtime);
+      console.log("[out_time]: ", out_time);
+      this.setState({status, out_time});
     }
   };
 
   startPlayout = () => {
-    this.setState({status: "On"});
-    mqtt.send("start", false, "exec/service/gst-play-1/sdi");
+    const {playout, playlist, playlist_index} = this.state;
+    const {file_name, file_path, source_id} = playlist[playlist_index]
+    playout.jsonst = {file_name, file_path, source_id};
+    putData(`streamer/playouts/gst-play-1`, playout, data => {
+      console.log("startPlayout: ", data);
+      this.setState({status: "On"});
+      //mqtt.send("start", false, "exec/service/gst-play-1/sdi");
+      this.runTimer();
+    })
   };
 
-  stopPlayout = () => {
+  stopPlayout = (next) => {
     this.setState({status: "Off", file_name: null});
-    mqtt.send("stop", false, "exec/service/gst-play-1/sdi");
+    //mqtt.send("stop", false, "exec/service/gst-play-1/sdi");
+    clearInterval(this.state.ival);
+    if(next) {
+      setTimeout(() => {
+        this.startPlayout()
+      }, 3000)
+    }
   };
 
   loadPlaylist = () => {
@@ -107,8 +124,35 @@ class Monitor extends Component {
     this.setState({selected_playlist});
   };
 
+  runTimer = () => {
+    let {playback_timer, playlist_index, playlist} = this.state;
+    const {duration} = playlist[playlist_index]
+    if(this.state.ival)
+      clearInterval(this.state.ival);
+    let ival = setInterval(() => {
+      if(duration && playback_timer > Number(duration)) {
+        const loop = playlist.length < playlist_index ? 0 : playlist_index++;
+        this.setState({playback_timer: 0, playlist_index: loop});
+        this.stopPlayout(true)
+      } else {
+        this.setState({playback_timer: playback_timer++})
+      }
+    }, 1000);
+    this.setState({ival});
+  };
+
+  // runTimer = () => {
+  //   this.getStat();
+  //   if(this.state.ival)
+  //     clearInterval(this.state.ival);
+  //   let ival = setInterval(() => {
+  //     this.getStat();
+  //   }, 1000);
+  //   this.setState({ival});
+  // };
+
   render() {
-    const {allow, playlist_db, selected_playlist, playlistDate, playlist_name, galaxy, playlist, file_data} = this.state;
+    const {playback_timer, playlist_db, selected_playlist, status, playlist_name, galaxy, playlist, file_data} = this.state;
 
     //let login = (<LoginPage user={user} allow={allow} checkPermission={this.checkPermission} />);
 
@@ -139,8 +183,7 @@ class Monitor extends Component {
         <Grid>
           <GridRow columns={2} divided>
             <GridColumn stretched>
-
-
+              <Segment color='green' style={{fontSize: 150}} >{toHms(playback_timer)}</Segment>
             </GridColumn>
             <GridColumn>
 
@@ -190,6 +233,12 @@ class Monitor extends Component {
                         {toHms(file_data?.source?.kmedia?.duration || "")}
                       </Table.Cell>
                     </Table.Row>
+                    <Table.Row>
+                      <Table.Cell>
+                      </Table.Cell>
+                      <Table.Cell>
+                      </Table.Cell>
+                    </Table.Row>
                   </Table.Body>
                   {/*<Table.Footer>*/}
                   {/*  <Table.Row>*/}
@@ -223,8 +272,12 @@ class Monitor extends Component {
                       >
                       </Dropdown>
                     </Table.HeaderCell>
-                    <Table.HeaderCell></Table.HeaderCell>
-                    <Table.HeaderCell></Table.HeaderCell>
+                    <Table.HeaderCell>
+                      <Button disabled={playlist.length === 0} positive fluid onClick={this.startPlayout}>Start</Button>
+                    </Table.HeaderCell>
+                    <Table.HeaderCell>
+                      <Button disabled={status === "Off"} negative fluid onClick={this.stopPlayout}>Stop</Button>
+                    </Table.HeaderCell>
                     <Table.HeaderCell></Table.HeaderCell>
                   </Table.Row>
                 </Table.Header>
