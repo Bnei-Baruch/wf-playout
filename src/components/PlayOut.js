@@ -104,6 +104,7 @@ class Monitor extends Component {
   };
 
   stopPlayout = (next) => {
+    console.log(next)
     this.setState({status: "Off", file_name: null});
     //mqtt.send("stop", false, "exec/service/gst-play-1/sdi");
     clearInterval(this.state.ival);
@@ -111,6 +112,8 @@ class Monitor extends Component {
       setTimeout(() => {
         this.startPlayout()
       }, 3000)
+    } else {
+      this.setState({playback_timer: 0});
     }
   };
 
@@ -131,7 +134,7 @@ class Monitor extends Component {
       clearInterval(this.state.ival);
     let ival = setInterval(() => {
       if(duration && playback_timer > Number(duration)) {
-        const loop = playlist.length < playlist_index ? 0 : playlist_index++;
+        const loop = playlist.length < playlist_index ? 0 : playlist_index+1;
         this.setState({playback_timer: 0, playlist_index: loop});
         this.stopPlayout(true)
       } else {
@@ -152,14 +155,14 @@ class Monitor extends Component {
   // };
 
   render() {
-    const {playback_timer, playlist_db, selected_playlist, status, playlist_name, galaxy, playlist, file_data} = this.state;
+    const {playback_timer, playlist_db, selected_playlist, status, playlist_index, galaxy, playlist, file_data} = this.state;
 
     //let login = (<LoginPage user={user} allow={allow} checkPermission={this.checkPermission} />);
 
     const list = playlist.map((data, i) => {
       const {source_id, sha1, file_name, uid, file_uid, duration} = data;
       return (
-        <Table.Row key={i}>
+        <Table.Row key={i} active={playlist_index === i}>
           <Table.Cell>{source_id}</Table.Cell>
           <Table.Cell>{file_name}</Table.Cell>
           <Table.Cell>{sha1}</Table.Cell>
@@ -273,10 +276,10 @@ class Monitor extends Component {
                       </Dropdown>
                     </Table.HeaderCell>
                     <Table.HeaderCell>
-                      <Button disabled={playlist.length === 0} positive fluid onClick={this.startPlayout}>Start</Button>
+                      <Button disabled={playlist.length === 0 || status === "On"} positive fluid onClick={this.startPlayout}>Start</Button>
                     </Table.HeaderCell>
                     <Table.HeaderCell>
-                      <Button disabled={status === "Off"} negative fluid onClick={this.stopPlayout}>Stop</Button>
+                      <Button disabled={status === "Off"} negative fluid onClick={() => this.stopPlayout(false)}>Stop</Button>
                     </Table.HeaderCell>
                     <Table.HeaderCell></Table.HeaderCell>
                   </Table.Row>
