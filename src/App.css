@@ -54,6 +54,17 @@
     border-radius: .28571429rem;
 }
 
+.timepickercs {
+    cursor: pointer!important;
+    width:180px!important;
+    height:38px!important;
+    font-size: 22px!important;
+    border-color: #396dad;
+    background-color: #ebf5fa;
+    border: 1px solid #96c9f3;
+    border-radius: .28571429rem;
+}
+
 .react-datepicker {
     font-size: 1.3em;
 }

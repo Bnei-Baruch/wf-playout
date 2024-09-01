@@ -418,8 +418,8 @@ class Playouts extends Component {
                     <Table.HeaderCell><Input value={playlist_name} placeholder='Playlist name' onChange={(e) => {this.setState({playlist_name: e.target.value})}} /></Table.HeaderCell>
                     <Table.HeaderCell>
                       <DatePicker
-                        className="datepickercs"
-                        dateFormat="yyyy-MM-dd"
+                        className="timepickercs"
+                        dateFormat="yyyy/MM/dd HH:mm"
                         // locale={he}
                         showYearDropdown
                         showMonthDropdown
