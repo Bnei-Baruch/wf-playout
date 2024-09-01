@@ -148,7 +148,7 @@ class Playouts extends Component {
 
   savePlaylist = () => {
     const {playlist, playlist_name, playlistDate} = this.state;
-    const date = playlistDate.toLocaleDateString('sv');
+    const date = playlistDate.toUTCString();
     const total = toHms(playlist.map((r) => Number(r?.duration)).reduce((su, cur) => su + cur, 0));
     const json = {playlist, date, total}
     putData(`shidur/playlist/${playlist_name}`, json, data => {
@@ -157,6 +157,7 @@ class Playouts extends Component {
   };
 
   setPlaylistDate = (data) => {
+    console.log(":: setPlaylistDate: ", data);
     let date = data.toLocaleDateString('sv');
     this.setState({playlistDate: data});
   };
@@ -422,13 +423,16 @@ class Playouts extends Component {
                         // locale={he}
                         showYearDropdown
                         showMonthDropdown
+                        showTimeInput
                         scrollableYearDropdown
-                        maxDate={new Date()}
+                        maxDate={new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)}
                         selected={playlistDate}
                         onChange={this.setPlaylistDate}
                       />
                     </Table.HeaderCell>
-                    <Table.HeaderCell>Total:</Table.HeaderCell>
+                    <Table.HeaderCell>
+                      Total:
+                    </Table.HeaderCell>
                     <Table.HeaderCell>{toHms(playlist.map((r) => Number(r?.duration)).reduce((su, cur) => su + cur, 0))}</Table.HeaderCell>
                   </Table.Row>
                 </Table.Footer>
