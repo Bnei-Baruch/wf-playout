@@ -170,7 +170,8 @@ class Playouts extends Component {
   loadPlaylist = () => {
     const {selected_playlist, playlist_db} = this.state;
     const playlist = playlist_db[selected_playlist]["playlist"];
-    this.setState({playlist});
+    const playlistDate = new Date(playlist_db[selected_playlist]["date"])
+    this.setState({playlist, playlistDate});
   };
 
   removePlaylist = () => {
