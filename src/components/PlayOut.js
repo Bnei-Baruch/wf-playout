@@ -98,7 +98,7 @@ class Monitor extends Component {
     putData(`streamer/playouts/gst-play-1`, playout, data => {
       console.log("startPlayout: ", data);
       this.setState({status: "On"});
-      //mqtt.send("start", false, "exec/service/gst-play-1/sdi");
+      mqtt.send("start", false, "exec/service/gst-play-1/sdi");
       this.runTimer();
     })
   };
@@ -106,7 +106,7 @@ class Monitor extends Component {
   stopPlayout = (next) => {
     console.log(next)
     this.setState({status: "Off", file_name: null});
-    //mqtt.send("stop", false, "exec/service/gst-play-1/sdi");
+    mqtt.send("stop", false, "exec/service/gst-play-1/sdi");
     clearInterval(this.state.ival);
     if(next) {
       setTimeout(() => {

@@ -16,7 +16,7 @@ import {
   getWorkflowData,
   langch_options,
   MDB_UNIT_URL,
-  putData,
+  putData, removeData,
   streamFetcher,
   toHms,
   vres_options
@@ -162,6 +162,7 @@ class Playouts extends Component {
   };
 
   editPlaylist = (selected_playlist) => {
+    console.log(":: editPlaylist: ", selected_playlist);
     this.setState({selected_playlist});
   };
 
@@ -169,6 +170,15 @@ class Playouts extends Component {
     const {selected_playlist, playlist_db} = this.state;
     const playlist = playlist_db[selected_playlist]["playlist"];
     this.setState({playlist});
+  };
+
+  removePlaylist = () => {
+    const {selected_playlist, playlist_db} = this.state;
+    removeData(`shidur/playlist/${selected_playlist}`, data => {
+      console.log(":: Remove playlist: ", data);
+      delete playlist_db[selected_playlist];
+      this.setState({playlist_db, playlist: [], selected_playlist: ""});
+    })
   }
 
   render() {
@@ -394,7 +404,9 @@ class Playouts extends Component {
                       >
                       </Dropdown>
                     </Table.HeaderCell>
-                    <Table.HeaderCell></Table.HeaderCell>
+                    <Table.HeaderCell>
+                      <Button negative disabled={!selected_playlist} onClick={this.removePlaylist}>Remove playlist</Button>
+                    </Table.HeaderCell>
                     <Table.HeaderCell></Table.HeaderCell>
                     <Table.HeaderCell></Table.HeaderCell>
                   </Table.Row>
