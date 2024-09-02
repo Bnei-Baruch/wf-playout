@@ -39,9 +39,17 @@ class Monitor extends Component {
     file_data: "",
     playlistDate: new Date(),
     playback_timer: 0,
+    date: new Date().toLocaleDateString('sv'),
+    time: "00:00:00",
+    shDate: "",
+    shTime: "",
   };
 
   componentDidMount() {
+    setInterval(() => {
+      const time = new Date().toTimeString().slice(0, 8);
+      this.setState({time})
+    }, 1000)
     getData('shidur/playlist', playlist_db => {
       console.log(playlist_db);
       this.setState({playlist_db})
@@ -120,7 +128,10 @@ class Monitor extends Component {
   loadPlaylist = () => {
     const {selected_playlist, playlist_db} = this.state;
     const playlist = playlist_db[selected_playlist]["playlist"];
-    this.setState({playlist});
+    const playlistDate = new Date(playlist_db[selected_playlist]["date"])
+    const shDate = playlistDate.toLocaleDateString('sv');
+    const shTime = playlistDate.toTimeString().slice(0, 5);
+    this.setState({playlist, playlistDate, shDate, shTime});
   };
 
   editPlaylist = (selected_playlist) => {
@@ -155,7 +166,7 @@ class Monitor extends Component {
   // };
 
   render() {
-    const {playback_timer, playlist_db, selected_playlist, status, playlist_index, galaxy, playlist, file_data} = this.state;
+    const {shDate, shTime, date, time, playback_timer, playlist_db, selected_playlist, status, playlist_index, galaxy, playlist, file_data} = this.state;
 
     //let login = (<LoginPage user={user} allow={allow} checkPermission={this.checkPermission} />);
 
@@ -201,15 +212,15 @@ class Monitor extends Component {
 
                   <Table.Body>
                     <Table.Row>
-                      <Table.Cell>Content UID</Table.Cell>
+                      <Table.Cell>Today</Table.Cell>
                       <Table.Cell>
-                        <a target="_blank" rel="noopener noreferrer" href={`${MDB_UNIT_URL}/${file_data?.line?.unit_id}`}><b>{file_data?.line?.uid}</b></a>
+                        <b>{date}</b> <b>{time}</b>
                       </Table.Cell>
                     </Table.Row>
                     <Table.Row>
-                      <Table.Cell>Source File UID</Table.Cell>
+                      <Table.Cell>Schedule</Table.Cell>
                       <Table.Cell>
-                        {file_data?.source?.converted?.file_uid}
+                        <b>{shDate}</b> <b>{shTime}</b>
                       </Table.Cell>
                     </Table.Row>
                     <Table.Row>
