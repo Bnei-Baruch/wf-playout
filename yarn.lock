@@ -5583,7 +5583,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"semantic-ui-react@npm:^2.1.5":
+"semantic-ui-react@npm:2.1.5":
   version: 2.1.5
   resolution: "semantic-ui-react@npm:2.1.5"
   dependencies:
@@ -6498,7 +6498,7 @@ __metadata:
     react: "npm:^18.3.1"
     react-datepicker: "npm:^7.3.0"
     react-dom: "npm:^18.3.1"
-    semantic-ui-react: "npm:^2.1.5"
+    semantic-ui-react: "npm:2.1.5"
     style-loader: "npm:^4.0.0"
     thread-loader: "npm:^4.0.2"
     webpack: "npm:^5.93.0"

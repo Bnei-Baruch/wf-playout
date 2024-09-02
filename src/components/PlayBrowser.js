@@ -9,7 +9,7 @@ import {
   Dropdown,
   Grid,
   GridRow,
-  GridColumn, Button, Input
+  GridColumn, Button, Input, Divider
 } from 'semantic-ui-react'
 import {
   getData,
@@ -187,7 +187,7 @@ class Playouts extends Component {
     const {selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate} = this.state;
 
     let files_list = files.map((data, i) => {
-      return ({ key: i, text: data.file_name, value: data })
+      return ({ key: data.source_id, text: data.file_name, value: data })
     });
 
     const list = playlist.map((data, i) => {
@@ -312,6 +312,8 @@ class Playouts extends Component {
                           // disabled={!id}
                           fluid
                           // className="trim_files_dropdown"
+                          selectOnBlur={false}
+                          selectOnNavigation={false}
                           error={this.state.disabled}
                           scrolling={false}
                           placeholder="Select File To Play:"
@@ -388,11 +390,11 @@ class Playouts extends Component {
           </GridRow>
           <GridRow>
             <GridColumn>
-              <Table>
+              <Table color="red" >
                 <Table.Header>
                   <Table.Row>
                     <Table.HeaderCell>
-                      <Button onClick={this.loadPlaylist}>Load playlist</Button>
+                      <Button disabled={!selected_playlist} onClick={this.loadPlaylist}>Load playlist</Button>
                     </Table.HeaderCell>
                     <Table.HeaderCell>
                       <Dropdown
@@ -413,9 +415,15 @@ class Playouts extends Component {
                     <Table.HeaderCell></Table.HeaderCell>
                   </Table.Row>
                 </Table.Header>
+              </Table>
+            </GridColumn>
+          </GridRow>
+          <GridRow>
+            <GridColumn>
+              <Table color="blue">
                 <Table.Footer>
                   <Table.Row>
-                    <Table.HeaderCell><Button onClick={this.savePlaylist}>Save playlist</Button></Table.HeaderCell>
+                    <Table.HeaderCell><Button disabled={playlist.length === 0} onClick={this.savePlaylist}>Save playlist</Button></Table.HeaderCell>
                     <Table.HeaderCell><Input value={playlist_name} placeholder='Playlist name' onChange={(e) => {this.setState({playlist_name: e.target.value})}} /></Table.HeaderCell>
                     <Table.HeaderCell>
                       <DatePicker
