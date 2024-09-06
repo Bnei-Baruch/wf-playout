@@ -22,6 +22,7 @@ import DatePicker from "react-datepicker";
 class Monitor extends Component {
 
   state = {
+    autoplay_start: false,
     allow: null,
     streamer: {},
     workflow: {},
@@ -40,16 +41,13 @@ class Monitor extends Component {
     playlistDate: new Date(),
     playback_timer: 0,
     date: new Date().toLocaleDateString('sv'),
+    now: new Date(),
     time: "00:00:00",
     shDate: "",
     shTime: "",
   };
 
   componentDidMount() {
-    setInterval(() => {
-      const time = new Date().toTimeString().slice(0, 8);
-      this.setState({time})
-    }, 1000)
     getData('shidur/playlist', playlist_db => {
       console.log(playlist_db);
       this.setState({playlist_db})
@@ -64,7 +62,7 @@ class Monitor extends Component {
         const local = true
         const topic = local ? watch : 'bb/' + watch;
         mqtt.join(topic);
-        //this.getStat()
+        this.getStat()
         //this.runTimer();
         mqtt.watch((message, topic) => {
           this.onMqttMessage(message, topic);
@@ -83,6 +81,24 @@ class Monitor extends Component {
     }
   };
 
+  shchTimer = () => {
+    setInterval(() => {
+      const {selected_playlist, autoplay_start} = this.state;
+      const time = new Date().toTimeString().slice(0, 8);
+      this.setState({time, now: new Date()});
+      if(selected_playlist && !autoplay_start) {
+        const {selected_playlist, playlist_db} = this.state;
+        const now = new Date();
+        const playlistDate = new Date(playlist_db[selected_playlist]["date"])
+        console.log(now - playlistDate)
+        if(now - playlistDate > 0 && !autoplay_start) {
+          this.setState({autoplay_start: true});
+          this.startAutoPlay();
+        }
+      }
+    }, 1000)
+  }
+
   getStat = () => {
     mqtt.send("status", false, "exec/service/gst-play-1/sdi");
   };
@@ -98,6 +114,12 @@ class Monitor extends Component {
       this.setState({status, out_time});
     }
   };
+
+
+  startAutoPlay = () => {
+    console.log("--startAutoPlay--");
+    this.startPlayout();
+  }
 
   startPlayout = () => {
     const {playout, playlist, playlist_index} = this.state;
