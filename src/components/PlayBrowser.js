@@ -171,9 +171,11 @@ class Playouts extends Component {
 
   loadPlaylist = () => {
     const {selected_playlist, playlist_db} = this.state;
+    const autoplay = playlist_db[selected_playlist]["autoplay"];
+    console.log(playlist_db[selected_playlist])
     const playlist = playlist_db[selected_playlist]["playlist"];
     const playlistDate = new Date(playlist_db[selected_playlist]["date"])
-    this.setState({playlist, playlistDate});
+    this.setState({autoplay, playlist, playlistDate, playlist_name: selected_playlist});
   };
 
   removePlaylist = () => {
@@ -442,7 +444,7 @@ class Playouts extends Component {
                       />
                     </Table.HeaderCell>
                     <Table.HeaderCell>
-                      <Checkbox value={autoplay} label='AutoPlay' toggle onChange={() => this.setState({autoplay: !autoplay})} />
+                      <Checkbox checked={autoplay} label='AutoPlay' toggle onChange={() => this.setState({autoplay: !autoplay})} />
                     </Table.HeaderCell>
                     <Table.HeaderCell>Total: {toHms(playlist.map((r) => Number(r?.duration)).reduce((su, cur) => su + cur, 0))}</Table.HeaderCell>
                   </Table.Row>

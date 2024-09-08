@@ -31,6 +31,7 @@ class Monitor extends Component {
     janus: {},
     status: "Off",
     user: null,
+    autoplay: false,
     playlist: [],
     playlist_name: "",
     playlist_db: {},
@@ -62,7 +63,8 @@ class Monitor extends Component {
         const local = true
         const topic = local ? watch : 'bb/' + watch;
         mqtt.join(topic);
-        this.getStat()
+        this.getStat();
+        this.shchTimer();
         //this.runTimer();
         mqtt.watch((message, topic) => {
           this.onMqttMessage(message, topic);
@@ -83,7 +85,7 @@ class Monitor extends Component {
 
   shchTimer = () => {
     setInterval(() => {
-      const {selected_playlist, autoplay_start} = this.state;
+      const {autoplay, selected_playlist, autoplay_start} = this.state;
       const time = new Date().toTimeString().slice(0, 8);
       this.setState({time, now: new Date()});
       if(selected_playlist && !autoplay_start) {
@@ -91,7 +93,7 @@ class Monitor extends Component {
         const now = new Date();
         const playlistDate = new Date(playlist_db[selected_playlist]["date"])
         console.log(now - playlistDate)
-        if(now - playlistDate > 0 && !autoplay_start) {
+        if(now - playlistDate > 0 && autoplay && !autoplay_start) {
           this.setState({autoplay_start: true});
           this.startAutoPlay();
         }
@@ -150,10 +152,12 @@ class Monitor extends Component {
   loadPlaylist = () => {
     const {selected_playlist, playlist_db} = this.state;
     const playlist = playlist_db[selected_playlist]["playlist"];
-    const playlistDate = new Date(playlist_db[selected_playlist]["date"])
+    console.log("loadPlaylist: ", playlist_db[selected_playlist]);
+    const playlistDate = new Date(playlist_db[selected_playlist]["date"]);
+    const autoplay = playlist_db[selected_playlist]["autoplay"];
     const shDate = playlistDate.toLocaleDateString('sv');
     const shTime = playlistDate.toTimeString().slice(0, 5);
-    this.setState({playlist, playlistDate, shDate, shTime});
+    this.setState({autoplay, playlist, playlistDate, shDate, shTime});
   };
 
   editPlaylist = (selected_playlist) => {
@@ -188,7 +192,7 @@ class Monitor extends Component {
   // };
 
   render() {
-    const {shDate, shTime, date, time, playback_timer, playlist_db, selected_playlist, status, playlist_index, galaxy, playlist, file_data} = this.state;
+    const {autoplay, shDate, shTime, date, time, playback_timer, playlist_db, selected_playlist, status, playlist_index, galaxy, playlist, file_data} = this.state;
 
     //let login = (<LoginPage user={user} allow={allow} checkPermission={this.checkPermission} />);
 
@@ -309,7 +313,7 @@ class Monitor extends Component {
                       </Dropdown>
                     </Table.HeaderCell>
                     <Table.HeaderCell>
-                      <Button disabled={playlist.length === 0 || status === "On"} positive fluid onClick={this.startPlayout}>Start</Button>
+                      <Button disabled={autoplay || playlist.length === 0 || status === "On"} positive fluid onClick={this.startPlayout}>Start</Button>
                     </Table.HeaderCell>
                     <Table.HeaderCell>
                       <Button disabled={status === "Off"} negative fluid onClick={() => this.stopPlayout(false)}>Stop</Button>
