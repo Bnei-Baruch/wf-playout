@@ -91,9 +91,9 @@ class Monitor extends Component {
       if(selected_playlist && !autoplay_start) {
         const {selected_playlist, playlist_db} = this.state;
         const now = new Date();
-        const playlistDate = new Date(playlist_db[selected_playlist]["date"])
-        console.log(now - playlistDate)
-        if(now - playlistDate > 0 && autoplay && !autoplay_start) {
+        const playlistDate = new Date(playlist_db[selected_playlist]["date"].slice(0, 23) + "00 GMT")
+        const diff = now - playlistDate;
+        if(diff > 0 && diff < 1001 && autoplay && !autoplay_start) {
           this.setState({autoplay_start: true});
           this.startAutoPlay();
         }
@@ -145,7 +145,7 @@ class Monitor extends Component {
         this.startPlayout()
       }, 3000)
     } else {
-      this.setState({playback_timer: 0});
+      this.setState({playback_timer: 0, autoplay_start: false, autoplay: false, playlist: [], shDate: "", shTime: ""});
     }
   };
 
@@ -180,16 +180,6 @@ class Monitor extends Component {
     }, 1000);
     this.setState({ival});
   };
-
-  // runTimer = () => {
-  //   this.getStat();
-  //   if(this.state.ival)
-  //     clearInterval(this.state.ival);
-  //   let ival = setInterval(() => {
-  //     this.getStat();
-  //   }, 1000);
-  //   this.setState({ival});
-  // };
 
   render() {
     const {autoplay, shDate, shTime, date, time, playback_timer, playlist_db, selected_playlist, status, playlist_index, galaxy, playlist, file_data} = this.state;
@@ -243,7 +233,7 @@ class Monitor extends Component {
                         <b>{date}</b> <b>{time}</b>
                       </Table.Cell>
                     </Table.Row>
-                    <Table.Row>
+                    <Table.Row positive={autoplay}>
                       <Table.Cell>Schedule</Table.Cell>
                       <Table.Cell>
                         <b>{shDate}</b> <b>{shTime}</b>
@@ -352,8 +342,8 @@ class Monitor extends Component {
                   <Table.Row>
                     <Table.HeaderCell>ID</Table.HeaderCell>
                     <Table.HeaderCell>File Name</Table.HeaderCell>
-                    <Table.HeaderCell>SHA1</Table.HeaderCell>
-                    <Table.HeaderCell>Content UID</Table.HeaderCell>
+                    <Table.HeaderCell></Table.HeaderCell>
+                    <Table.HeaderCell></Table.HeaderCell>
                     <Table.HeaderCell>Duration</Table.HeaderCell>
                   </Table.Row>
                 </Table.Header>
