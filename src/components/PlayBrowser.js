@@ -9,7 +9,7 @@ import {
   Dropdown,
   Grid,
   GridRow,
-  GridColumn, Button, Input, Divider
+  GridColumn, Button, Input, Divider, Checkbox
 } from 'semantic-ui-react'
 import {
   getData,
@@ -26,6 +26,7 @@ import {
 class Playouts extends Component {
 
   state = {
+    autoplay: false,
     disabled: true,
     main: [],
     backup: [],
@@ -147,12 +148,13 @@ class Playouts extends Component {
   };
 
   savePlaylist = () => {
-    const {playlist, playlist_name, playlistDate} = this.state;
+    const {autoplay, playlist, playlist_name, playlistDate} = this.state;
     const date = playlistDate.toUTCString();
     const total = toHms(playlist.map((r) => Number(r?.duration)).reduce((su, cur) => su + cur, 0));
-    const json = {playlist, date, total}
+    const json = {autoplay, playlist, date, total}
     putData(`shidur/playlist/${playlist_name}`, json, data => {
       console.log(":: Save playlist: ", json, data);
+      //TODO: Clear state
     } )
   };
 
@@ -184,7 +186,7 @@ class Playouts extends Component {
   }
 
   render() {
-    const {selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate} = this.state;
+    const {autoplay, selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate} = this.state;
 
     let files_list = files.map((data, i) => {
       return ({ key: data.source_id, text: data.file_name, value: data })
@@ -440,9 +442,9 @@ class Playouts extends Component {
                       />
                     </Table.HeaderCell>
                     <Table.HeaderCell>
-                      Total:
+                      <Checkbox value={autoplay} label='AutoPlay' toggle onChange={() => this.setState({autoplay: !autoplay})} />
                     </Table.HeaderCell>
-                    <Table.HeaderCell>{toHms(playlist.map((r) => Number(r?.duration)).reduce((su, cur) => su + cur, 0))}</Table.HeaderCell>
+                    <Table.HeaderCell>Total: {toHms(playlist.map((r) => Number(r?.duration)).reduce((su, cur) => su + cur, 0))}</Table.HeaderCell>
                   </Table.Row>
                 </Table.Footer>
               </Table>
