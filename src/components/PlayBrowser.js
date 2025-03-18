@@ -9,7 +9,7 @@ import {
   Dropdown,
   Grid,
   GridRow,
-  GridColumn, Button, Input, Divider, Checkbox
+  GridColumn, Button, Input, Icon, Checkbox
 } from 'semantic-ui-react'
 import {
   getData,
@@ -126,6 +126,14 @@ class Playouts extends Component {
     this.getWorkflow(date)
   };
 
+  findByUID = () => {
+    const {find_uid} = this.state;
+    getWorkflowData(`source/js/line?uid=${find_uid}`, (data) => {
+      console.log(":: Got workflow: ",data);
+      this.setState({files: data})
+    });
+  }
+
   setLang = (val) => {
     console.log(val)
     this.state.hls.audioTrack = val;
@@ -188,7 +196,7 @@ class Playouts extends Component {
   }
 
   render() {
-    const {autoplay, selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate} = this.state;
+    const {find_uid, autoplay, selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate} = this.state;
 
     let files_list = files.map((data, i) => {
       return ({ key: data.source_id, text: data.file_name, value: data })
@@ -269,6 +277,8 @@ class Playouts extends Component {
                       <Table.HeaderCell/>
                       <Table.HeaderCell/>
                       <Table.HeaderCell />
+                      <Table.HeaderCell />
+                      <Table.HeaderCell />
                     </Table.Row>
                   </Table.Header>
 
@@ -306,12 +316,21 @@ class Playouts extends Component {
                           onChange={this.changeDate}
                         />
                       </Table.Cell>
+                      <Table.Cell>UID</Table.Cell>
+                      <Table.Cell>
+                        <Input
+                          action="find"
+                          placeholder='36SHmz3G'
+                          value={find_uid}
+                          onChange={(e, { value }) => this.setState({find_uid: value})}
+                        ><input /><Button onClick={() => this.findByUID()}>Find</Button></Input>
+                      </Table.Cell>
                     </Table.Row>
                   </Table.Body>
                   <Table.Footer>
                     <Table.Row>
                       <Table.HeaderCell>Files</Table.HeaderCell>
-                      <Table.HeaderCell colSpan='4'>
+                      <Table.HeaderCell colSpan='6'>
                         <Dropdown
                           // disabled={!id}
                           fluid
