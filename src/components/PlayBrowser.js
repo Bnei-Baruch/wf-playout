@@ -111,7 +111,19 @@ class Playouts extends Component {
     console.log(":: Select file: ", data);
     const {hls} = this.state;
     let file_source = `https://wfsrv.bbdomain.org/wfapi${data.source.converted.filename}`
-    let hls_source = `https://cdn.kab.info/${data.source.kmedia.file_uid}.m3u8`
+
+    // External kmedia
+    //let hls_source = `https://cdn.kab.info/${data.source.kmedia.file_uid}.m3u8`
+    //hls.loadSource(hls_source);
+
+    // Local kmdeia
+    // const path = data.source.kmedia.filename.split('/backup/files/kmedia/')[1]
+    // const uid = data.source.kmedia.file_uid
+    // let hls_source = `https://hls.bbdomain.org/${uid}/${path}/master.m3u8`
+
+    // Local source
+    const path = data.source.converted.filename.split('/backup/files/sources/')[1]
+    let hls_source = `https://src.bbdomain.org/${path}/master.m3u8`
     hls.loadSource(hls_source);
     this.setState({hls_source, file_source, file_data: data, file_name: data.file_name, disabled: false});
   };
