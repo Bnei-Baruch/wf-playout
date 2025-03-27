@@ -173,9 +173,17 @@ class Playouts extends Component {
   };
 
   addToPlaylist = () => {
-    const {file_data, playlist} = this.state;
+    const {inpoint, outpoint, hls_source, file_data, playlist} = this.state;
     const {source_id, sha1, file_name, line: {uid}, source: {converted: {filename, file_uid, duration}}} = file_data;
-    const playraw = {source_id, sha1, file_name, uid, file_uid, duration, file_path: filename};
+    let file_path
+    if(inpoint && outpoint) {
+      const path = filename.split('/backup/files/sources/')[1]
+      file_path = `https://src.bbdomain.org/${path}/clipFrom/${inpoint}/clipTo/${outpoint}/master.m3u8`
+    } else {
+      file_path = `https://src.bbdomain.org/${path}/master.m3u8`
+    }
+    //const playraw = {source_id, sha1, file_name, uid, file_uid, duration, file_path: filename};
+    const playraw = {source_id, sha1, file_name, uid, file_uid, duration, file_path};
     playlist.push(playraw);
     this.setState({playlist});
     console.log(playlist)
