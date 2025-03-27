@@ -125,8 +125,8 @@ class Monitor extends Component {
 
   startPlayout = () => {
     const {playout, playlist, playlist_index} = this.state;
-    const {file_name, file_path, source_id} = playlist[playlist_index]
-    playout.jsonst = {file_name, file_path, source_id};
+    const {file_name, file_path, source_id, isHls, hls_path} = playlist[playlist_index]
+    playout.jsonst = {file_name, file_path, source_id, isHls, hls_path};
     putData(`streamer/playouts/gst-play-1`, playout, data => {
       console.log("startPlayout: ", data);
       this.setState({status: "On"});
