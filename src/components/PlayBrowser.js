@@ -110,7 +110,7 @@ class Playouts extends Component {
 
   setOut= () => {
     let currentTime = this.refs.player.currentTime.toFixed(3) * 1000;
-    console.log(":: Set IN: ",currentTime);
+    console.log(":: Set OUT: ",currentTime);
     this.setState({outpoint: currentTime});
   };
 
@@ -175,14 +175,17 @@ class Playouts extends Component {
   addToPlaylist = () => {
     const {inpoint, outpoint, hls_source, file_data, playlist} = this.state;
     const {source_id, sha1, file_name, line: {uid}, source: {converted: {filename, file_uid, duration}}} = file_data;
+    const path = filename.split('/backup/files/sources/')[1]
     let file_path
     if(inpoint && outpoint) {
-      const path = filename.split('/backup/files/sources/')[1]
       file_path = `https://src.bbdomain.org/${path}/clipFrom/${inpoint}/clipTo/${outpoint}/master.m3u8`
     } else {
       file_path = `https://src.bbdomain.org/${path}/master.m3u8`
     }
+    // MP4
     //const playraw = {source_id, sha1, file_name, uid, file_uid, duration, file_path: filename};
+
+    // HLS
     const playraw = {source_id, sha1, file_name, uid, file_uid, duration, file_path};
     playlist.push(playraw);
     this.setState({playlist});
