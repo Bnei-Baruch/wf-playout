@@ -55,6 +55,8 @@ class Playouts extends Component {
     playlist_db: {},
     playlist_options: [],
     selected_playlist: "",
+    inpoint: null,
+    outpoint: null,
   };
 
   componentDidMount() {
@@ -98,6 +100,18 @@ class Playouts extends Component {
         this.setState({video_options});
       });
     }
+  };
+
+  setIn = () => {
+    let currentTime = this.refs.player.currentTime.toFixed(3) * 1000;
+    console.log(":: Set IN: ",currentTime);
+    this.setState({inpoint: currentTime});
+  };
+
+  setOut= () => {
+    let currentTime = this.refs.player.currentTime.toFixed(3) * 1000;
+    console.log(":: Set IN: ",currentTime);
+    this.setState({outpoint: currentTime});
   };
 
   getWorkflow = (date) => {
@@ -208,7 +222,7 @@ class Playouts extends Component {
   }
 
   render() {
-    const {find_uid, autoplay, selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate} = this.state;
+    const {inpoint, outpoint ,find_uid, autoplay, selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate} = this.state;
 
     let files_list = files.map((data, i) => {
       return ({ key: data.source_id, text: data.file_name, value: data })
@@ -337,6 +351,29 @@ class Playouts extends Component {
                           onChange={(e, { value }) => this.setState({find_uid: value})}
                         ><input /><Button onClick={() => this.findByUID()}>Find</Button></Input>
                       </Table.Cell>
+                    </Table.Row>
+                    <Table.Row>
+                      <Table.Cell>IN</Table.Cell>
+                      <Table.Cell>
+                        <Button as='div' labelPosition='right' className="inout_btn">
+                          <Button icon color='grey' className="inout_btn" onClick={() => this.setIn(null)} />
+                          <Label as='a' basic pointing='left' onDoubleClick={() => this.jumpPoint(null)}>
+                            { inpoint ? inpoint : "<- Set in" }
+                          </Label>
+                        </Button>
+                      </Table.Cell>
+                      <Table.Cell>OUT</Table.Cell>
+                      <Table.Cell>
+                        <Button as='div' labelPosition='left' className="inout_btn">
+                          <Label as='a' basic pointing='right' color={inpoint > outpoint ? 'red' : ''}
+                                 onDoubleClick={() => this.jumpPoint(outp)}>
+                            {outpoint ? outpoint : "Set out ->"}
+                          </Label>
+                          <Button icon color='grey' className="inout_btn" onClick={() => this.setOut()}/>
+                        </Button>
+                      </Table.Cell>
+                      <Table.Cell></Table.Cell>
+                      <Table.Cell></Table.Cell>
                     </Table.Row>
                   </Table.Body>
                   <Table.Footer>
