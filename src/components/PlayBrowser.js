@@ -57,6 +57,7 @@ class Playouts extends Component {
     selected_playlist: "",
     inpoint: null,
     outpoint: null,
+    isHls: true
   };
 
   componentDidMount() {
@@ -173,20 +174,16 @@ class Playouts extends Component {
   };
 
   addToPlaylist = () => {
-    const {inpoint, outpoint, hls_source, file_data, playlist} = this.state;
+    const {isHls, inpoint, outpoint, hls_source, file_data, playlist} = this.state;
     const {source_id, sha1, file_name, line: {uid}, source: {converted: {filename, file_uid, duration}}} = file_data;
     const path = filename.split('/backup/files/sources/')[1]
-    let file_path
+    let hls_path
     if(inpoint && outpoint) {
-      file_path = `https://src.bbdomain.org/${path}/clipFrom/${inpoint}/clipTo/${outpoint}/master.m3u8`
+      hls_path = `https://src.bbdomain.org/${path}/clipFrom/${inpoint}/clipTo/${outpoint}/master.m3u8`
     } else {
-      file_path = `https://src.bbdomain.org/${path}/master.m3u8`
+      hls_path = `https://src.bbdomain.org/${path}/master.m3u8`
     }
-    // MP4
-    //const playraw = {source_id, sha1, file_name, uid, file_uid, duration, file_path: filename};
-
-    // HLS
-    const playraw = {source_id, sha1, file_name, uid, file_uid, duration, file_path};
+    const playraw = {source_id, sha1, file_name, uid, file_uid, duration, file_path: path, hls_path, isHls};
     playlist.push(playraw);
     this.setState({playlist});
     console.log(playlist)
@@ -233,7 +230,7 @@ class Playouts extends Component {
   }
 
   render() {
-    const {inpoint, outpoint ,find_uid, autoplay, selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate} = this.state;
+    const {isHls, inpoint, outpoint ,find_uid, autoplay, selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate} = this.state;
 
     let files_list = files.map((data, i) => {
       return ({ key: data.source_id, text: data.file_name, value: data })
@@ -383,8 +380,10 @@ class Playouts extends Component {
                           <Button icon color='grey' className="inout_btn" onClick={() => this.setOut()}/>
                         </Button>
                       </Table.Cell>
-                      <Table.Cell></Table.Cell>
-                      <Table.Cell></Table.Cell>
+                      <Table.Cell>HLS</Table.Cell>
+                      <Table.Cell>
+                        <Checkbox toggle checked={isHls} onChange={() => this.setState({isHls: !isHls})} />
+                      </Table.Cell>
                     </Table.Row>
                   </Table.Body>
                   <Table.Footer>
