@@ -104,15 +104,19 @@ class Playouts extends Component {
   };
 
   setIn = () => {
-    let currentTime = this.refs.player.currentTime.toFixed(3) * 1000;
-    console.log(":: Set IN: ",currentTime);
-    this.setState({inpoint: currentTime});
+    let currentTime = this.refs.player.currentTime;
+    // Round down to the start of the current second
+    let alignedTime = Math.floor(currentTime) * 1000;
+    console.log(":: Set IN: ", alignedTime, "(original:", currentTime * 1000, ")");
+    this.setState({inpoint: alignedTime});
   };
 
   setOut= () => {
-    let currentTime = this.refs.player.currentTime.toFixed(3) * 1000;
-    console.log(":: Set OUT: ",currentTime);
-    this.setState({outpoint: currentTime});
+    let currentTime = this.refs.player.currentTime;
+    // Round up to the end of the current second
+    let alignedTime = Math.ceil(currentTime) * 1000;
+    console.log(":: Set OUT: ", alignedTime, "(original:", currentTime * 1000, ")");
+    this.setState({outpoint: alignedTime});
   };
 
   getWorkflow = (date) => {
