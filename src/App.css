@@ -185,3 +185,207 @@
 /*    text-decoration: none;*/
 /*    width: 20px;*/
 /*}*/
+
+/* ===== RESPONSIVE DESIGN ===== */
+
+/* Mobile-first responsive breakpoints */
+@media (max-width: 768px) {
+  /* Make video player responsive */
+  video {
+    width: 100% !important;
+    height: auto !important;
+    max-width: 100% !important;
+  }
+  
+  /* Improve button spacing on mobile */
+  .ui.button {
+    margin: 0.25em !important;
+    font-size: 0.9em !important;
+  }
+  
+  /* Make tables scrollable on mobile */
+  .ui.table {
+    font-size: 0.9em !important;
+  }
+  
+  /* Improve form controls on mobile */
+  .ui.input {
+    margin: 0.5em 0 !important;
+  }
+  
+  /* Better spacing for mobile */
+  .ui.segment {
+    padding: 1em !important;
+    margin: 0.5em !important;
+  }
+  
+  /* Stack grid columns on mobile */
+  .ui.grid > .row > .column {
+    padding: 0.5em !important;
+  }
+  
+  /* Improve dropdown sizing on mobile */
+  .ui.dropdown {
+    min-width: 120px !important;
+  }
+  
+  /* Better date picker on mobile */
+  .datepickercs,
+  .timepickercs {
+    width: 100% !important;
+    max-width: 200px !important;
+    font-size: 16px !important;
+  }
+  
+  /* Improve table cell padding on mobile */
+  .ui.table td,
+  .ui.table th {
+    padding: 0.5em 0.3em !important;
+  }
+}
+
+/* Tablet breakpoint */
+@media (min-width: 769px) and (max-width: 1024px) {
+  /* Medium screen optimizations */
+  video {
+    max-width: 600px !important;
+    height: auto !important;
+  }
+  
+  .ui.button {
+    margin: 0.5em !important;
+  }
+  
+  .ui.segment {
+    padding: 1.5em !important;
+  }
+}
+
+/* Desktop optimizations */
+@media (min-width: 1025px) {
+  /* Large screen enhancements */
+  video {
+    max-width: 640px !important;
+    height: auto !important;
+  }
+  
+  .ui.button {
+    margin: 0.5em !important;
+  }
+}
+
+/* General responsive improvements */
+.ui.grid {
+  margin: 0 !important;
+}
+
+.ui.grid > .row {
+  margin: 0 !important;
+}
+
+.ui.grid > .row > .column {
+  padding: 0.5em !important;
+}
+
+/* Improve button groups on all screen sizes */
+.ui.button + .ui.button {
+  margin-left: 0.5em !important;
+}
+
+/* Better table responsiveness */
+.ui.table {
+  border-radius: 0.28571429rem !important;
+}
+
+/* Improve form layout */
+.ui.form .field {
+  margin-bottom: 1em !important;
+}
+
+/* Better spacing for controls */
+.ui.label {
+  margin: 0.25em !important;
+}
+
+/* ===== PLAYLIST TABLE STYLING ===== */
+.playlist-table .time-column {
+  font-family: 'Courier New', monospace !important;
+  text-align: center !important;
+  background-color: #f8f9fa !important;
+  border-left: 2px solid #e9ecef !important;
+  border-right: 2px solid #e9ecef !important;
+}
+
+.playlist-table .clip-duration {
+  font-weight: bold !important;
+  color: #28a745 !important;
+  background-color: #d4edda !important;
+}
+
+.playlist-table .editing-row {
+  background-color: #e8f5e8 !important;
+  border: 2px solid #28a745 !important;
+}
+
+.playlist-table .actions-cell {
+  text-align: center !important;
+  min-width: 120px !important;
+}
+
+.playlist-table .actions-cell .ui.button {
+  margin: 2px !important;
+  font-size: 0.8em !important;
+}
+
+/* Editing controls styling */
+.editing-controls {
+  background: linear-gradient(135deg, #f0f8ff 0%, #e6f3ff 100%) !important;
+  border: 1px solid #b3d9ff !important;
+  border-radius: 8px !important;
+  box-shadow: 0 2px 4px rgba(0, 102, 204, 0.1) !important;
+}
+
+.editing-controls .editing-header {
+  color: #0066cc !important;
+  font-weight: 600 !important;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8) !important;
+}
+
+/* ===== SKIP CONTROLS STYLING ===== */
+.skip-controls {
+  margin: 16px 0 !important;
+}
+
+.skip-controls .ui.button.group {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: center !important;
+  gap: 8px !important;
+}
+
+.skip-controls .ui.button {
+  min-width: 60px !important;
+  margin: 2px !important;
+  font-size: 0.8em !important;
+}
+
+/* Mobile responsive skip controls */
+@media (max-width: 768px) {
+  .skip-controls .ui.button {
+    min-width: 50px !important;
+    font-size: 0.7em !important;
+    padding: 0.5em 0.3em !important;
+  }
+  
+  .skip-controls .ui.button.group {
+    gap: 4px !important;
+  }
+}
+
+/* Tablet responsive skip controls */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .skip-controls .ui.button {
+    min-width: 55px !important;
+    font-size: 0.75em !important;
+  }
+}

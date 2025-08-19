@@ -57,7 +57,9 @@ class Playouts extends Component {
     selected_playlist: "",
     inpoint: null,
     outpoint: null,
-    isHls: true
+    isHls: true,
+    editingPlaylistIndex: null,
+    isPreviewingTrim: false
   };
 
   componentDidMount() {
@@ -187,7 +189,7 @@ class Playouts extends Component {
     } else {
       hls_path = `https://src.bbdomain.org/${path}/master.m3u8`
     }
-    const playraw = {source_id, sha1, file_name, uid, file_uid, duration, file_path: path, hls_path, isHls};
+    const playraw = {source_id, sha1, file_name, uid, file_uid, duration, file_path: path, hls_path, isHls, inpoint, outpoint};
     playlist.push(playraw);
     this.setState({playlist});
     console.log(playlist)
@@ -222,6 +224,12 @@ class Playouts extends Component {
     const playlist = playlist_db[selected_playlist]["playlist"];
     const playlistDate = new Date(playlist_db[selected_playlist]["date"])
     this.setState({autoplay, playlist, playlistDate, playlist_name: selected_playlist});
+    
+    // Auto-load the first item for editing if playlist has items
+    if (playlist && playlist.length > 0) {
+      console.log('Auto-loading first playlist item for editing');
+      this.loadPlaylistItemToPlayer(playlist[0], 0);
+    }
   };
 
   removePlaylist = () => {
@@ -243,22 +251,197 @@ class Playouts extends Component {
     }
   }
 
+  // Helper function to calculate clip duration from in/out points
+  calculateClipDuration = (inpoint, outpoint) => {
+    if (!inpoint || !outpoint) return 0;
+    return outpoint - inpoint;
+  }
+
+  // Helper function to format time in HH:MM:SS format
+  formatTime = (seconds) => {
+    if (!seconds || seconds < 0) return '00:00:00';
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  // Load a playlist item onto the player for editing
+  loadPlaylistItemToPlayer = (playlistItem, index = null) => {
+    console.log('Loading playlist item to player:', playlistItem);
+    
+    // Always load the full file for editing (not the trimmed version)
+    const fullHlsPath = `https://src.bbdomain.org/${playlistItem.file_path}/master.m3u8`;
+    
+    // Set the HLS source to the full file
+    if (this.state.hls) {
+      this.state.hls.loadSource(fullHlsPath);
+      console.log('Loaded full file for editing:', fullHlsPath);
+    }
+    
+    // Set the in/out points from the playlist item
+    this.setState({
+      inpoint: playlistItem.inpoint || null,
+      outpoint: playlistItem.outpoint || null,
+      editingPlaylistIndex: index !== null ? index : this.state.editingPlaylistIndex,
+      isPreviewingTrim: false
+    });
+    
+    console.log('Set in/out points:', { inpoint: playlistItem.inpoint, outpoint: playlistItem.outpoint });
+  }
+
+  // Edit a playlist item
+  editPlaylistItem = (index) => {
+    console.log('Editing playlist item at index:', index);
+    const playlistItem = this.state.playlist[index];
+    this.loadPlaylistItemToPlayer(playlistItem, index);
+  }
+
+  // Update the currently loaded playlist item with new in/out points
+  updateCurrentPlaylistItem = () => {
+    const { editingPlaylistIndex, inpoint, outpoint, playlist } = this.state;
+    
+    if (editingPlaylistIndex === null || editingPlaylistIndex === undefined) {
+      console.log('No item selected for editing');
+      return;
+    }
+    
+    console.log('Updating playlist item at index:', editingPlaylistIndex, { inpoint, outpoint });
+    
+    // Update the playlist item
+    const updatedPlaylist = [...playlist];
+    updatedPlaylist[editingPlaylistIndex] = {
+      ...updatedPlaylist[editingPlaylistIndex],
+      inpoint,
+      outpoint
+    };
+    
+    // Update the hls_path if both in/out points are set
+    if (inpoint && outpoint) {
+      const { file_path } = updatedPlaylist[editingPlaylistIndex];
+      updatedPlaylist[editingPlaylistIndex].hls_path = `https://src.bbdomain.org/${file_path}/clipFrom/${inpoint}/clipTo/${outpoint}/master.m3u8`;
+    }
+    
+    this.setState({ playlist: updatedPlaylist });
+    console.log('Updated playlist:', updatedPlaylist);
+  }
+
+  // Preview the trimmed version
+  previewTrimmedVersion = () => {
+    const { editingPlaylistIndex, playlist } = this.state;
+    
+    if (editingPlaylistIndex === null || editingPlaylistIndex === undefined) {
+      console.log('No item selected for editing');
+      return;
+    }
+    
+    const playlistItem = playlist[editingPlaylistIndex];
+    
+    if (playlistItem.inpoint && playlistItem.outpoint) {
+      // Load the trimmed version
+      const trimmedHlsPath = `https://src.bbdomain.org/${playlistItem.file_path}/clipFrom/${playlistItem.inpoint}/clipTo/${playlistItem.outpoint}/master.m3u8`;
+      
+      if (this.state.hls) {
+        this.state.hls.loadSource(trimmedHlsPath);
+        console.log('Previewing trimmed version:', trimmedHlsPath);
+      }
+      
+      this.setState({ isPreviewingTrim: true });
+    } else {
+      console.log('No in/out points set for trimming');
+    }
+  }
+
+  // Return to full file view
+  returnToFullFile = () => {
+    const { editingPlaylistIndex, playlist } = this.state;
+    
+    if (editingPlaylistIndex === null || editingPlaylistIndex === undefined) {
+      console.log('No item selected for editing');
+      return;
+    }
+    
+    const playlistItem = playlist[editingPlaylistIndex];
+    
+    // Load the full file
+    const fullHlsPath = `https://src.bbdomain.org/${playlistItem.file_path}/master.m3u8`;
+    
+    if (this.state.hls) {
+      this.state.hls.loadSource(fullHlsPath);
+      console.log('Returned to full file:', fullHlsPath);
+    }
+    
+    this.setState({ isPreviewingTrim: false });
+  }
+
+  // Remove item from playlist
+  removeFromPlaylist = (index) => {
+    const { playlist, editingPlaylistIndex } = this.state;
+    
+    console.log('Removing playlist item at index:', index);
+    
+    // Remove the item
+    const updatedPlaylist = playlist.filter((_, i) => i !== index);
+    
+    // Update editing index if needed
+    let newEditingIndex = editingPlaylistIndex;
+    if (editingPlaylistIndex === index) {
+      // If we're removing the currently edited item, clear editing state
+      newEditingIndex = null;
+      this.setState({ inpoint: null, outpoint: null, isPreviewingTrim: false });
+    } else if (editingPlaylistIndex > index) {
+      // If we're removing an item before the edited one, adjust the index
+      newEditingIndex = editingPlaylistIndex - 1;
+    }
+    
+    this.setState({ 
+      playlist: updatedPlaylist, 
+      editingPlaylistIndex: newEditingIndex 
+    });
+    
+    console.log('Updated playlist after removal:', updatedPlaylist);
+  }
+
   render() {
-    const {isHls, inpoint, outpoint ,find_uid, autoplay, selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate} = this.state;
+    const {isHls, inpoint, outpoint, find_uid, autoplay, selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate, editingPlaylistIndex, isPreviewingTrim} = this.state;
 
     let files_list = files.map((data, i) => {
       return ({ key: data.source_id, text: data.file_name, value: data })
     });
 
     const list = playlist.map((data, i) => {
-      const {source_id, sha1, file_name, uid, file_uid, duration} = data;
+      const {source_id, file_name, uid, duration, inpoint, outpoint} = data;
+      const clipDuration = this.calculateClipDuration(inpoint, outpoint);
       return (
-        <Table.Row key={i}>
+        <Table.Row 
+          key={i} 
+          className={editingPlaylistIndex === i ? 'editing-row' : ''}
+        >
           <Table.Cell>{source_id}</Table.Cell>
           <Table.Cell>{file_name}</Table.Cell>
-          <Table.Cell>{sha1}</Table.Cell>
-          <Table.Cell>{uid}</Table.Cell>
+          <Table.Cell className="time-column">{inpoint ? this.formatTime(inpoint) : '00:00:00'}</Table.Cell>
+          <Table.Cell className="time-column">{outpoint ? this.formatTime(outpoint) : '00:00:00'}</Table.Cell>
+          <Table.Cell className="time-column clip-duration">{this.formatTime(clipDuration)}</Table.Cell>
           <Table.Cell>{toHms(duration)}</Table.Cell>
+          <Table.Cell>{uid}</Table.Cell>
+          <Table.Cell className="actions-cell">
+            <div style={{ display: 'flex', gap: '4px' }}>
+              <Button 
+                size="mini" 
+                primary 
+                onClick={() => this.editPlaylistItem(i)}
+                icon="edit"
+                content="Edit"
+              />
+              <Button 
+                size="mini" 
+                negative 
+                onClick={() => this.removeFromPlaylist(i)}
+                icon="trash"
+                content="Remove"
+              />
+            </div>
+          </Table.Cell>
         </Table.Row>
       )
     });
@@ -308,6 +491,41 @@ class Playouts extends Component {
                       <Button onClick={() => this.skipTime(300)} size="small">+5m</Button>
                     </div>
                   </div>
+
+                  {/* Editing Controls */}
+                  {editingPlaylistIndex !== null && editingPlaylistIndex !== undefined && (
+                    <div className="editing-controls" style={{ margin: '16px 0', padding: '12px' }}>
+                      <div className="editing-header" style={{ textAlign: 'center', marginBottom: '8px' }}>
+                        🎬 Editing Playlist Item #{editingPlaylistIndex + 1}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <Button 
+                          primary 
+                          size="small" 
+                          onClick={this.updateCurrentPlaylistItem}
+                          disabled={editingPlaylistIndex === null || editingPlaylistIndex === undefined}
+                        >
+                          💾 Update Item
+                        </Button>
+                        <Button 
+                          secondary 
+                          size="small" 
+                          onClick={this.previewTrimmedVersion}
+                          disabled={!inpoint || !outpoint}
+                        >
+                          👁️ Preview Trim
+                        </Button>
+                        <Button 
+                          basic 
+                          size="small" 
+                          onClick={this.returnToFullFile}
+                          disabled={!isPreviewingTrim}
+                        >
+                          🔄 Return to Full File
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <Label attached='bottom' size='big' >
                   <Dropdown
@@ -566,14 +784,17 @@ class Playouts extends Component {
           </GridRow>
           <GridRow>
             <GridColumn>
-              <Table unstackable>
+              <Table unstackable className="playlist-table">
                 <Table.Header>
                   <Table.Row>
                     <Table.HeaderCell>ID</Table.HeaderCell>
                     <Table.HeaderCell>File Name</Table.HeaderCell>
-                    <Table.HeaderCell>SHA1</Table.HeaderCell>
+                    <Table.HeaderCell>In Point</Table.HeaderCell>
+                    <Table.HeaderCell>Out Point</Table.HeaderCell>
+                    <Table.HeaderCell>Clip Duration</Table.HeaderCell>
+                    <Table.HeaderCell>File Duration</Table.HeaderCell>
                     <Table.HeaderCell>Content UID</Table.HeaderCell>
-                    <Table.HeaderCell>Duration</Table.HeaderCell>
+                    <Table.HeaderCell>Actions</Table.HeaderCell>
                   </Table.Row>
                 </Table.Header>
 
