@@ -89,7 +89,17 @@ class Playouts extends Component {
         debug: false,
         enableWorker: true,
         lowLatencyMode: false,
-        backBufferLength: 90
+        backBufferLength: 90,
+        // Add more stable configuration options
+        maxBufferLength: 30,
+        maxMaxBufferLength: 60,
+        maxBufferSize: 60 * 1000 * 1000, // 60MB
+        maxBufferHole: 0.5,
+        // Disable features that can cause seeking issues
+        enableSoftwareAES: false,
+        // Better seeking configuration
+        seekHoleNudgeDuration: 0.1,
+        seekNudgeDuration: 0.1
       });
       
       this.setState({hls})
@@ -122,6 +132,15 @@ class Playouts extends Component {
         // Add ready state handling
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           console.log('HLS manifest parsed successfully');
+        });
+        
+        // Add seeking event handling to prevent InterstitialsController errors
+        hls.on(Hls.Events.SEEKING, () => {
+          console.log('HLS seeking started');
+        });
+        
+        hls.on(Hls.Events.SEEKED, () => {
+          console.log('HLS seeking completed');
         });
         
         hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => {
@@ -316,7 +335,13 @@ class Playouts extends Component {
     if (video && !isNaN(video.currentTime)) {
       const newTime = video.currentTime + seconds;
       if (newTime >= 0 && newTime <= video.duration) {
-        video.currentTime = newTime;
+        try {
+          // Set the new time
+          video.currentTime = newTime;
+          console.log(`Skipped ${seconds} seconds to ${newTime}s`);
+        } catch (error) {
+          console.log('Error during skip operation:', error);
+        }
       }
     }
   }
@@ -345,10 +370,29 @@ class Playouts extends Component {
     // Convert milliseconds to seconds for the video player
     const timeInSeconds = timeInMilliseconds / 1000;
     
-    // Set the player's current time
-    this.refs.player.currentTime = timeInSeconds;
+    try {
+      // Set the player's current time
+      this.refs.player.currentTime = timeInSeconds;
+      console.log(`Jumped to time: ${this.formatTime(timeInMilliseconds)} (${timeInSeconds}s)`);
+    } catch (error) {
+      console.log('Error during jump operation:', error);
+    }
+  }
+
+  // Function to jump to the end of the video
+  jumpToEnd = () => {
+    const video = this.refs.player;
+    if (!video || !video.duration) return;
     
-    console.log(`Jumped to time: ${this.formatTime(timeInMilliseconds)} (${timeInSeconds}s)`);
+    try {
+      // Jump to the end (subtract 1 second to avoid going past the end)
+      const endTime = Math.max(0, video.duration - 1);
+      video.currentTime = endTime;
+      
+      console.log(`Jumped to end: ${endTime}s`);
+    } catch (error) {
+      console.log('Error during jump to end operation:', error);
+    }
   }
 
   // Load a playlist item onto the player for editing
@@ -364,14 +408,31 @@ class Playouts extends Component {
       console.log('Loaded full file for editing:', fullHlsPath);
     }
     
-    // Set the in/out points from the playlist item
+    // Create file_data object from playlist item so IN/OUT controls are visible
+    const file_data = {
+      source_id: playlistItem.source_id,
+      sha1: playlistItem.sha1,
+      file_name: playlistItem.file_name,
+      source: {
+        converted: {
+          filename: `/backup/files/sources/${playlistItem.file_path}`,
+          file_uid: playlistItem.file_uid,
+          duration: playlistItem.duration
+        }
+      }
+    };
+    
+    // Set the in/out points from the playlist item and file_data
     this.setState({
       inpoint: playlistItem.inpoint || null,
       outpoint: playlistItem.outpoint || null,
-      editingPlaylistIndex: index !== null ? index : this.state.editingPlaylistIndex
+      editingPlaylistIndex: index !== null ? index : this.state.editingPlaylistIndex,
+      file_data: file_data,
+      file_name: playlistItem.file_name
     });
     
     console.log('Set in/out points:', { inpoint: playlistItem.inpoint, outpoint: playlistItem.outpoint });
+    console.log('Set file_data for editing:', file_data);
   }
 
   // Edit a playlist item
@@ -541,7 +602,7 @@ class Playouts extends Component {
                   
                   {/* Skip Controls */}
                   <div className="skip-controls" style={{ margin: '16px 0' }}>
-                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: '4px' }}>
                       <Button onClick={() => this.skipTime(-300)} size="small">-5m</Button>
                       <Button onClick={() => this.skipTime(-60)} size="small">-1m</Button>
                       <Button onClick={() => this.skipTime(-10)} size="small">-10s</Button>
@@ -550,6 +611,7 @@ class Playouts extends Component {
                       <Button onClick={() => this.skipTime(10)} size="small">+10s</Button>
                       <Button onClick={() => this.skipTime(60)} size="small">+1m</Button>
                       <Button onClick={() => this.skipTime(300)} size="small">+5m</Button>
+                      <Button onClick={() => this.jumpToEnd()} size="small" color="blue">End</Button>
                     </div>
                   </div>
 
@@ -736,12 +798,18 @@ class Playouts extends Component {
                   <div style={{ width: '100%', height: '1px', backgroundColor: '#dee2e6' }}></div>
                   
                   {/* Bottom Section - Save playlist controls */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', width: '100%', justifyContent: 'center' }}>
-                    <Button disabled={playlist.length === 0} onClick={this.savePlaylist} size="small" style={{ width: '120px' }}>Save playlist</Button>
-                    <Input value={playlist_name} placeholder='Playlist name' size="small" style={{ width: '120px' }} onChange={(e) => {this.setState({playlist_name: e.target.value})}} />
-                    <div style={{ width: '120px', height: '28px', backgroundColor: '#ffffff', border: '1px solid #dee2e6', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: '#666' }}>
-                      Total: {toHms(playlist.map((r) => Number(r?.duration)).reduce((su, cur) => su + cur, 0))}
-                    </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '30px', padding: '27px', width: '100%', justifyContent: 'center' }}>
+                    <Button disabled={playlist.length === 0} onClick={this.savePlaylist} size="small">Save playlist</Button>
+                    <Input value={playlist_name} placeholder='Playlist name' size="small" style={{ minWidth: '200px' }} onChange={(e) => {this.setState({playlist_name: e.target.value})}} />
+                    <div style={{ padding: '8px 12px', backgroundColor: '#ffffff', border: '1px solid #dee2e6', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: '#666' }}>
+                     Total: {toHms(playlist.map((r) => {
+                       // Calculate clip duration from in/out points, or use full duration if no trimming
+                       if (r?.inpoint && r?.outpoint) {
+                         return (r.outpoint - r.inpoint) / 1000; // Convert milliseconds to seconds
+                       }
+                       return Number(r?.duration) || 0;
+                     }).reduce((su, cur) => su + cur, 0))}
+                   </div>
                   </div>
                 </div>
               </div>
