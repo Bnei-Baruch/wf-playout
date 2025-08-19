@@ -351,6 +351,81 @@
   text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8) !important;
 }
 
+/* ===== SETTINGS MODAL STYLING ===== */
+.settings-modal-overlay {
+  backdrop-filter: blur(4px) !important;
+  animation: fadeIn 0.2s ease-out !important;
+}
+
+.settings-modal-content {
+  animation: slideIn 0.3s ease-out !important;
+  transform-origin: center !important;
+}
+
+.settings-modal-header {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+  border-radius: 8px 8px 0 0 !important;
+  margin: -24px -24px 20px -24px !important;
+  padding: 20px 24px 12px 24px !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: flex-start !important;
+}
+
+.settings-modal-header h3 {
+  background: linear-gradient(135deg, #495057 0%, #6c757d 100%) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+}
+
+.settings-modal-section {
+  background-color: #f8f9fa !important;
+  border-radius: 6px !important;
+  padding: 16px !important;
+  border: 1px solid #e9ecef !important;
+}
+
+.settings-modal-section label {
+  color: #495057 !important;
+  font-size: 0.95em !important;
+}
+
+.settings-modal-footer {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+  border-radius: 0 0 8px 8px !important;
+  margin: 20px -24px -24px -24px !important;
+  padding: 16px 24px 20px 24px !important;
+}
+
+/* Settings button styling */
+.settings-button {
+  transition: all 0.2s ease !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+.settings-button:hover {
+  transform: scale(1.1) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideIn {
+  from { 
+    opacity: 0;
+    transform: scale(0.9) translateY(-20px);
+  }
+  to { 
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
 /* ===== SKIP CONTROLS STYLING ===== */
 .skip-controls {
   margin: 16px 0 !important;

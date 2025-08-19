@@ -59,7 +59,7 @@ class Playouts extends Component {
     outpoint: null,
     isHls: true,
     editingPlaylistIndex: null,
-    isPreviewingTrim: false
+    showSettings: false
   };
 
   componentDidMount() {
@@ -283,8 +283,7 @@ class Playouts extends Component {
     this.setState({
       inpoint: playlistItem.inpoint || null,
       outpoint: playlistItem.outpoint || null,
-      editingPlaylistIndex: index !== null ? index : this.state.editingPlaylistIndex,
-      isPreviewingTrim: false
+      editingPlaylistIndex: index !== null ? index : this.state.editingPlaylistIndex
     });
     
     console.log('Set in/out points:', { inpoint: playlistItem.inpoint, outpoint: playlistItem.outpoint });
@@ -326,53 +325,9 @@ class Playouts extends Component {
     console.log('Updated playlist:', updatedPlaylist);
   }
 
-  // Preview the trimmed version
-  previewTrimmedVersion = () => {
-    const { editingPlaylistIndex, playlist } = this.state;
-    
-    if (editingPlaylistIndex === null || editingPlaylistIndex === undefined) {
-      console.log('No item selected for editing');
-      return;
-    }
-    
-    const playlistItem = playlist[editingPlaylistIndex];
-    
-    if (playlistItem.inpoint && playlistItem.outpoint) {
-      // Load the trimmed version
-      const trimmedHlsPath = `https://src.bbdomain.org/${playlistItem.file_path}/clipFrom/${playlistItem.inpoint}/clipTo/${playlistItem.outpoint}/master.m3u8`;
-      
-      if (this.state.hls) {
-        this.state.hls.loadSource(trimmedHlsPath);
-        console.log('Previewing trimmed version:', trimmedHlsPath);
-      }
-      
-      this.setState({ isPreviewingTrim: true });
-    } else {
-      console.log('No in/out points set for trimming');
-    }
-  }
 
-  // Return to full file view
-  returnToFullFile = () => {
-    const { editingPlaylistIndex, playlist } = this.state;
-    
-    if (editingPlaylistIndex === null || editingPlaylistIndex === undefined) {
-      console.log('No item selected for editing');
-      return;
-    }
-    
-    const playlistItem = playlist[editingPlaylistIndex];
-    
-    // Load the full file
-    const fullHlsPath = `https://src.bbdomain.org/${playlistItem.file_path}/master.m3u8`;
-    
-    if (this.state.hls) {
-      this.state.hls.loadSource(fullHlsPath);
-      console.log('Returned to full file:', fullHlsPath);
-    }
-    
-    this.setState({ isPreviewingTrim: false });
-  }
+
+
 
   // Remove item from playlist
   removeFromPlaylist = (index) => {
@@ -388,7 +343,7 @@ class Playouts extends Component {
     if (editingPlaylistIndex === index) {
       // If we're removing the currently edited item, clear editing state
       newEditingIndex = null;
-      this.setState({ inpoint: null, outpoint: null, isPreviewingTrim: false });
+      this.setState({ inpoint: null, outpoint: null });
     } else if (editingPlaylistIndex > index) {
       // If we're removing an item before the edited one, adjust the index
       newEditingIndex = editingPlaylistIndex - 1;
@@ -402,8 +357,13 @@ class Playouts extends Component {
     console.log('Updated playlist after removal:', updatedPlaylist);
   }
 
+  // Toggle settings popup
+  toggleSettings = () => {
+    this.setState(prevState => ({ showSettings: !prevState.showSettings }));
+  }
+
   render() {
-    const {isHls, inpoint, outpoint, find_uid, autoplay, selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate, editingPlaylistIndex, isPreviewingTrim} = this.state;
+    const {isHls, inpoint, outpoint, find_uid, autoplay, selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate, editingPlaylistIndex, showSettings} = this.state;
 
     let files_list = files.map((data, i) => {
       return ({ key: data.source_id, text: data.file_name, value: data })
@@ -430,16 +390,16 @@ class Playouts extends Component {
                 size="mini" 
                 primary 
                 onClick={() => this.editPlaylistItem(i)}
-                icon="edit"
-                content="Edit"
-              />
+              >
+                Edit
+              </Button>
               <Button 
                 size="mini" 
                 negative 
                 onClick={() => this.removeFromPlaylist(i)}
-                icon="trash"
-                content="Remove"
-              />
+              >
+                Remove
+              </Button>
             </div>
           </Table.Cell>
         </Table.Row>
@@ -465,7 +425,28 @@ class Playouts extends Component {
           <GridRow columns={2} divided stackable>
             <GridColumn stretched>
               <Segment>
-                <div style={{ width: '100%', maxWidth: '640px', margin: '0 auto' }}>
+                <div style={{ width: '100%', maxWidth: '640px', margin: '0 auto', position: 'relative' }}>
+                  {/* Settings Icon */}
+                  <Button
+                    size="mini"
+                    circular
+                    className="settings-button"
+                    style={{
+                      position: 'absolute',
+                      top: '8px',
+                      left: '8px',
+                      zIndex: 10,
+                      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                      color: 'white',
+                      border: 'none',
+                      minWidth: '32px',
+                      height: '32px'
+                    }}
+                    onClick={this.toggleSettings}
+                  >
+                    ⚙️
+                  </Button>
+                  
                   <video
                     ref='player'
                     width="100%"
@@ -492,65 +473,40 @@ class Playouts extends Component {
                     </div>
                   </div>
 
+                                    {/* Add to Playlist Button - Always visible when file is loaded */}
+                  {file_data && (
+                    <div style={{ margin: '16px 0', padding: '12px', textAlign: 'center' }}>
+                      <Button
+                        secondary
+                        size="small"
+                        onClick={this.addToPlaylist}
+                        disabled={!file_data}
+                      >
+                        ➕ Add to Playlist
+                      </Button>
+                    </div>
+                  )}
+
                   {/* Editing Controls */}
                   {editingPlaylistIndex !== null && editingPlaylistIndex !== undefined && (
                     <div className="editing-controls" style={{ margin: '16px 0', padding: '12px' }}>
                       <div className="editing-header" style={{ textAlign: 'center', marginBottom: '8px' }}>
-                        🎬 Editing Playlist Item #{editingPlaylistIndex + 1}
+                        🎬 Editing Playlist Item #{editingPlaylistIndex + 1} - Set In/Out Points
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                        <Button 
-                          primary 
-                          size="small" 
+                        <Button
+                          primary
+                          size="small"
                           onClick={this.updateCurrentPlaylistItem}
                           disabled={editingPlaylistIndex === null || editingPlaylistIndex === undefined}
                         >
                           💾 Update Item
                         </Button>
-                        <Button 
-                          secondary 
-                          size="small" 
-                          onClick={this.previewTrimmedVersion}
-                          disabled={!inpoint || !outpoint}
-                        >
-                          👁️ Preview Trim
-                        </Button>
-                        <Button 
-                          basic 
-                          size="small" 
-                          onClick={this.returnToFullFile}
-                          disabled={!isPreviewingTrim}
-                        >
-                          🔄 Return to Full File
-                        </Button>
                       </div>
                     </div>
                   )}
                 </div>
-                <Label attached='bottom' size='big' >
-                  <Dropdown
-                    // disabled={!id}
-                    // compact
-                    className=""
-                    selection
-                    options={lang_options}
-                    defaultValue={7}
-                    value={selected_lang}
-                    onChange={(e, {value}) => this.setLang(value)}
-                  >
-                  </Dropdown>
-                  <Dropdown
-                    // disabled={!id}
-                    // compact
-                    className=""
-                    selection
-                    options={video_options}
-                    value={selected_video}
-                    // defaultValue="Workflow"
-                    onChange={(e, {value}) => this.setVideo(value)}
-                  >
-                  </Dropdown>
-                </Label>
+
               </Segment>
             </GridColumn>
             <GridColumn>
@@ -568,15 +524,9 @@ class Playouts extends Component {
                   </Table.Header>
 
                   <Table.Body>
-                    <Table.Row>
-                      <Table.Cell>Source</Table.Cell>
-                      <Table.Cell>
-                        <Button
-                          disabled={!file_data}
-                          onClick={this.addToPlaylist}
-                          size="small"
-                        >Add to playlist
-                        </Button>
+                                  <Table.Row>
+                <Table.Cell>Source</Table.Cell>
+                <Table.Cell>
                         {/*<Dropdown*/}
                         {/*  // disabled={!id}*/}
                         {/*  compact*/}
@@ -605,7 +555,7 @@ class Playouts extends Component {
                       <Table.Cell>UID</Table.Cell>
                       <Table.Cell>
                         <Input
-                          action="find"
+                          action
                           placeholder='36SHmz3G'
                           value={find_uid}
                           onChange={(e, { value }) => this.setState({find_uid: value})}
@@ -625,7 +575,7 @@ class Playouts extends Component {
                       <Table.Cell>OUT</Table.Cell>
                       <Table.Cell>
                         <Button as='div' labelPosition='left' className="inout_btn">
-                          <Label as='a' basic pointing='right' color={inpoint > outpoint ? 'red' : ''}
+                          <Label as='a' basic pointing='right' color={inpoint > outpoint ? 'red' : undefined}
                                  onDoubleClick={() => this.jumpPoint(outp)}>
                             {outpoint ? outpoint : "Set out ->"}
                           </Label>
@@ -826,6 +776,88 @@ class Playouts extends Component {
             </GridColumn>
           </GridRow>
         </Grid>
+
+        {/* Settings Modal */}
+        {showSettings && (
+          <div 
+            className="settings-modal-overlay"
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              zIndex: 1000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            onClick={this.toggleSettings}
+          >
+            <div 
+              className="settings-modal-content"
+              style={{
+                backgroundColor: 'white',
+                padding: '24px',
+                borderRadius: '8px',
+                minWidth: '400px',
+                maxWidth: '500px',
+                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="settings-modal-header">
+                <h3>⚙️ Player Settings</h3>
+                <Button 
+                  size="mini" 
+                  circular 
+                  onClick={this.toggleSettings}
+                  style={{ margin: 0, minWidth: '32px', height: '32px' }}
+                >
+                  ✕
+                </Button>
+              </div>
+
+              <div className="settings-modal-section">
+                <Dropdown
+                  fluid
+                  selection
+                  options={lang_options}
+                  value={selected_lang}
+                  onChange={(e, {value}) => this.setLang(value)}
+                  placeholder="Select language"
+                />
+              </div>
+
+              <div className="settings-modal-section">
+                <Dropdown
+                  fluid
+                  selection
+                  options={video_options}
+                  value={selected_video}
+                  onChange={(e, {value}) => this.setVideo(value)}
+                  placeholder="Select video quality"
+                />
+              </div>
+
+              <div className="settings-modal-footer">
+                <Button 
+                  basic 
+                  onClick={this.toggleSettings}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  primary 
+                  onClick={this.toggleSettings}
+                >
+                  Save Settings
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </Segment>
     );
   }
