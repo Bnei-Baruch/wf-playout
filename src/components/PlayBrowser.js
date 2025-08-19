@@ -258,12 +258,27 @@ class Playouts extends Component {
   }
 
   // Helper function to format time in HH:MM:SS format
-  formatTime = (seconds) => {
-    if (!seconds || seconds < 0) return '00:00:00';
+  formatTime = (milliseconds) => {
+    if (!milliseconds || milliseconds < 0) return '00:00:00';
+    // Convert milliseconds to seconds first
+    const seconds = Math.floor(milliseconds / 1000);
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  // Function to jump player to specific time
+  jumpPoint = (timeInMilliseconds) => {
+    if (!timeInMilliseconds || !this.refs.player) return;
+    
+    // Convert milliseconds to seconds for the video player
+    const timeInSeconds = timeInMilliseconds / 1000;
+    
+    // Set the player's current time
+    this.refs.player.currentTime = timeInSeconds;
+    
+    console.log(`Jumped to time: ${this.formatTime(timeInMilliseconds)} (${timeInSeconds}s)`);
   }
 
   // Load a playlist item onto the player for editing
@@ -473,14 +488,14 @@ class Playouts extends Component {
                     </div>
                   </div>
 
-                                    {/* Add to Playlist Button - Always visible when file is loaded */}
+                                    {/* Add to Playlist Button - Always visible when file is loaded, but disabled when editing */}
                   {file_data && (
                     <div style={{ margin: '16px 0', padding: '12px', textAlign: 'center' }}>
                       <Button
                         secondary
                         size="small"
                         onClick={this.addToPlaylist}
-                        disabled={!file_data}
+                        disabled={!file_data || (editingPlaylistIndex !== null && editingPlaylistIndex !== undefined)}
                       >
                         ➕ Add to Playlist
                       </Button>
@@ -567,8 +582,8 @@ class Playouts extends Component {
                       <Table.Cell>
                         <Button as='div' labelPosition='right' className="inout_btn">
                           <Button icon color='grey' className="inout_btn" onClick={() => this.setIn(null)} />
-                          <Label as='a' basic pointing='left' onDoubleClick={() => this.jumpPoint(null)}>
-                            { inpoint ? inpoint : "<- Set in" }
+                          <Label as='a' basic pointing='left' onClick={() => this.jumpPoint(inpoint)} style={{ cursor: 'pointer' }}>
+                            { inpoint ? this.formatTime(inpoint) : "<- Set in" }
                           </Label>
                         </Button>
                       </Table.Cell>
@@ -576,8 +591,8 @@ class Playouts extends Component {
                       <Table.Cell>
                         <Button as='div' labelPosition='left' className="inout_btn">
                           <Label as='a' basic pointing='right' color={inpoint > outpoint ? 'red' : undefined}
-                                 onDoubleClick={() => this.jumpPoint(outp)}>
-                            {outpoint ? outpoint : "Set out ->"}
+                                 onClick={() => this.jumpPoint(outpoint)} style={{ cursor: 'pointer' }}>
+                            {outpoint ? this.formatTime(outpoint) : "Set out ->"}
                           </Label>
                           <Button icon color='grey' className="inout_btn" onClick={() => this.setOut()}/>
                         </Button>
