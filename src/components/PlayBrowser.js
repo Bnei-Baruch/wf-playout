@@ -432,9 +432,6 @@ class Playouts extends Component {
 
     return(
       <Segment textAlign='center' >
-        <Label attached='top' size='big' >
-
-        </Label>
 
         <Grid>
           <GridRow columns={2} divided stackable>
@@ -478,10 +475,8 @@ class Playouts extends Component {
                       <Button onClick={() => this.skipTime(-300)} size="small">-5m</Button>
                       <Button onClick={() => this.skipTime(-60)} size="small">-1m</Button>
                       <Button onClick={() => this.skipTime(-10)} size="small">-10s</Button>
-                      <Button onClick={() => this.skipTime(-5)} size="small">-5s</Button>
                       <Button onClick={() => this.skipTime(-1)} size="small">-1s</Button>
                       <Button onClick={() => this.skipTime(1)} size="small">+1s</Button>
-                      <Button onClick={() => this.skipTime(5)} size="small">+5s</Button>
                       <Button onClick={() => this.skipTime(10)} size="small">+10s</Button>
                       <Button onClick={() => this.skipTime(60)} size="small">+1m</Button>
                       <Button onClick={() => this.skipTime(300)} size="small">+5m</Button>
@@ -539,20 +534,7 @@ class Playouts extends Component {
                   </Table.Header>
 
                   <Table.Body>
-                                  <Table.Row>
-                <Table.Cell>Source</Table.Cell>
-                <Table.Cell>
-                        {/*<Dropdown*/}
-                        {/*  // disabled={!id}*/}
-                        {/*  compact*/}
-                        {/*  className="trim_src_dropdown"*/}
-                        {/*  selection*/}
-                        {/*  options={src_options}*/}
-                        {/*  defaultValue="Workflow"*/}
-                        {/*  onChange={(e, {value}) => this.setSrc(value)}*/}
-                        {/*>*/}
-                        {/*</Dropdown>*/}
-                      </Table.Cell>
+                    <Table.Row>
                       <Table.Cell>Date</Table.Cell>
                       <Table.Cell>
                         <DatePicker
@@ -575,6 +557,58 @@ class Playouts extends Component {
                           value={find_uid}
                           onChange={(e, { value }) => this.setState({find_uid: value})}
                         ><input /><Button onClick={() => this.findByUID()} size="small">Find</Button></Input>
+                      </Table.Cell>
+                    </Table.Row>
+                    <Table.Row>
+                      <Table.Cell>Files</Table.Cell>
+                      <Table.Cell colSpan='5'>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Dropdown
+                            // disabled={!id}
+                            fluid
+                            // className="trim_files_dropdown"
+                            selectOnBlur={false}
+                            selectOnNavigation={false}
+                            error={this.state.disabled}
+                            scrolling={false}
+                            placeholder="Select File To Play:"
+                            selection
+                            value={file_data}
+                            options={files_list}
+                            onChange={(e,{value}) => this.selectFile(value)}
+                            // onClick={() => this.getWorkflow(this.state.date)}
+                          >
+                          </Dropdown>
+                          {file_data && (
+                            <div className="file-info-popup" style={{ position: 'relative' }}>
+                              <span style={{ cursor: 'pointer', fontSize: '16px', color: '#666' }}>ℹ️</span>
+                              <div className="file-info-content" style={{ 
+                                position: 'absolute', 
+                                bottom: '100%', 
+                                left: '50%', 
+                                transform: 'translateX(-50%)', 
+                                backgroundColor: 'white', 
+                                border: '1px solid #ccc', 
+                                borderRadius: '8px', 
+                                padding: '12px', 
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.15)', 
+                                zIndex: 1000, 
+                                minWidth: '300px',
+                                display: 'none'
+                              }}>
+                                <div style={{ fontWeight: 'bold', marginBottom: '8px', textAlign: 'center' }}>File Information</div>
+                                <div style={{ fontSize: '12px', lineHeight: '1.4' }}>
+                                  <div><strong>Content UID:</strong> <a target="_blank" rel="noopener noreferrer" href={`${MDB_UNIT_URL}/${file_data?.line?.unit_id}`}>{file_data?.line?.uid}</a></div>
+                                  <div><strong>Source File UID:</strong> {file_data?.source?.converted?.file_uid}</div>
+                                  <div><strong>Source SHA1:</strong> {file_data?.sha1}</div>
+                                  <div><strong>Kmedia File UID:</strong> {file_data?.source?.kmedia?.file_uid}</div>
+                                  <div><strong>Kmedia SHA1:</strong> {file_data?.source?.kmedia?.sha1}</div>
+                                  <div><strong>Duration:</strong> {toHms(file_data?.source?.kmedia?.duration || "")}</div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </Table.Cell>
                     </Table.Row>
                     <Table.Row>
@@ -603,150 +637,42 @@ class Playouts extends Component {
                       </Table.Cell>
                     </Table.Row>
                   </Table.Body>
-                  <Table.Footer>
-                    <Table.Row>
-                      <Table.HeaderCell>Files</Table.HeaderCell>
-                      <Table.HeaderCell colSpan='6'>
-                        <Dropdown
-                          // disabled={!id}
-                          fluid
-                          // className="trim_files_dropdown"
-                          selectOnBlur={false}
-                          selectOnNavigation={false}
-                          error={this.state.disabled}
-                          scrolling={false}
-                          placeholder="Select File To Play:"
-                          selection
-                          value={file_data}
-                          options={files_list}
-                          onChange={(e,{value}) => this.selectFile(value)}
-                          // onClick={() => this.getWorkflow(this.state.date)}
-                        >
-                        </Dropdown>
-                      </Table.HeaderCell>
-                    </Table.Row>
-                  </Table.Footer>
                 </Table>
               </Segment>
-              <Segment>
-                <Table basic='very'>
-                  <Table.Header>
-                    <Table.Row>
-                      <Table.HeaderCell />
-                      <Table.HeaderCell />
-                    </Table.Row>
-                  </Table.Header>
 
-                  <Table.Body>
-                    <Table.Row>
-                      <Table.Cell>Content UID</Table.Cell>
-                      <Table.Cell>
-                        <a target="_blank" rel="noopener noreferrer" href={`${MDB_UNIT_URL}/${file_data?.line?.unit_id}`}><b>{file_data?.line?.uid}</b></a>
-                      </Table.Cell>
-                    </Table.Row>
-                    <Table.Row>
-                      <Table.Cell>Source File UID</Table.Cell>
-                      <Table.Cell>
-                        {file_data?.source?.converted?.file_uid}
-                      </Table.Cell>
-                    </Table.Row>
-                    <Table.Row>
-                      <Table.Cell>Source SHA1</Table.Cell>
-                      <Table.Cell>
-                        {file_data?.sha1}
-                      </Table.Cell>
-                    </Table.Row>
-                    <Table.Row>
-                      <Table.Cell>Kmedia File UID</Table.Cell>
-                      <Table.Cell>
-                        {file_data?.source?.kmedia?.file_uid}
-                      </Table.Cell>
-                    </Table.Row>
-                    <Table.Row>
-                      <Table.Cell>Kmedia SHA1</Table.Cell>
-                      <Table.Cell>
-                        {file_data?.source?.kmedia?.sha1}
-                      </Table.Cell>
-                    </Table.Row>
-                    <Table.Row>
-                      <Table.Cell>Duration</Table.Cell>
-                      <Table.Cell>
-                        {toHms(file_data?.source?.kmedia?.duration || "")}
-                      </Table.Cell>
-                    </Table.Row>
-                  </Table.Body>
-                  {/*<Table.Footer>*/}
-                  {/*  <Table.Row>*/}
-                  {/*    <Table.HeaderCell><b>Content UID</b></Table.HeaderCell>*/}
-                  {/*    <Table.HeaderCell colSpan='4'>*/}
+              {/* Playlist Management - Compact and under IN/OUT controls */}
+              <div style={{ marginTop: '16px', textAlign: 'center' }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '12px', padding: '12px', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #e9ecef' }}>
+                  <Button disabled={!selected_playlist} onClick={this.loadPlaylist} size="small">Load playlist</Button>
+                  <Dropdown
+                    // disabled={!id}
+                    compact
+                    className=""
+                    selection
+                    options={playlist_options}
+                    value={selected_playlist}
+                    onChange={(e, {value}) => this.editPlaylist(value)}
+                    style={{ minWidth: '200px' }}
+                  >
+                  </Dropdown>
+                  <Button negative disabled={!selected_playlist} onClick={this.removePlaylist} size="small">Remove playlist</Button>
+                </div>
+                
+                {/* Playlist Save Bar - Compact and under Load playlist */}
+                <div style={{ marginTop: '12px', textAlign: 'center' }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px', backgroundColor: '#f0f8ff', borderRadius: '6px', border: '1px solid #d1ecf1' }}>
+                    <Button disabled={playlist.length === 0} onClick={this.savePlaylist} size="mini" style={{ width: '120px' }}>Save playlist</Button>
+                    <Input value={playlist_name} placeholder='Playlist name' size="mini" style={{ width: '120px' }} onChange={(e) => {this.setState({playlist_name: e.target.value})}} />
+                    <div style={{ width: '120px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8f9fa', border: '1px solid #dee2e6', borderRadius: '4px', fontSize: '12px', color: '#666' }}>
+                      Total: {toHms(playlist.map((r) => Number(r?.duration)).reduce((su, cur) => su + cur, 0))}
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-                  {/*    </Table.HeaderCell>*/}
-                  {/*  </Table.Row>*/}
-                  {/*</Table.Footer>*/}
-                </Table>
-              </Segment>
             </GridColumn>
           </GridRow>
-          <GridRow>
-            <GridColumn>
-              <Table color="red" unstackable>
-                <Table.Header>
-                  <Table.Row>
-                    <Table.HeaderCell>
-                      <Button disabled={!selected_playlist} onClick={this.loadPlaylist} size="small">Load playlist</Button>
-                    </Table.HeaderCell>
-                    <Table.HeaderCell>
-                      <Dropdown
-                        // disabled={!id}
-                        // compact
-                        className=""
-                        selection
-                        options={playlist_options}
-                        value={selected_playlist}
-                        onChange={(e, {value}) => this.editPlaylist(value)}
-                      >
-                      </Dropdown>
-                    </Table.HeaderCell>
-                    <Table.HeaderCell>
-                      <Button negative disabled={!selected_playlist} onClick={this.removePlaylist} size="small">Remove playlist</Button>
-                    </Table.HeaderCell>
-                    <Table.HeaderCell></Table.HeaderCell>
-                    <Table.HeaderCell></Table.HeaderCell>
-                  </Table.Row>
-                </Table.Header>
-              </Table>
-            </GridColumn>
-          </GridRow>
-          <GridRow>
-            <GridColumn>
-              <Table color="blue" unstackable>
-                <Table.Footer>
-                  <Table.Row>
-                    <Table.HeaderCell><Button disabled={playlist.length === 0} onClick={this.savePlaylist} size="small">Save playlist</Button></Table.HeaderCell>
-                    <Table.HeaderCell><Input value={playlist_name} placeholder='Playlist name' onChange={(e) => {this.setState({playlist_name: e.target.value})}} /></Table.HeaderCell>
-                    <Table.HeaderCell>
-                      <DatePicker
-                        className="timepickercs"
-                        dateFormat="yyyy/MM/dd HH:mm"
-                        // locale={he}
-                        showYearDropdown
-                        showMonthDropdown
-                        showTimeInput
-                        scrollableYearDropdown
-                        maxDate={new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)}
-                        selected={playlistDate}
-                        onChange={this.setPlaylistDate}
-                      />
-                    </Table.HeaderCell>
-                    <Table.HeaderCell>
-                      <Checkbox checked={autoplay} label='AutoPlay' toggle onChange={() => this.setState({autoplay: !autoplay})} />
-                    </Table.HeaderCell>
-                    <Table.HeaderCell>Total: {toHms(playlist.map((r) => Number(r?.duration)).reduce((su, cur) => su + cur, 0))}</Table.HeaderCell>
-                  </Table.Row>
-                </Table.Footer>
-              </Table>
-            </GridColumn>
-          </GridRow>
+
           <GridRow>
             <GridColumn>
               <Table unstackable className="playlist-table">

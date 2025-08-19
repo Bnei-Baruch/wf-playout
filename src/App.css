@@ -464,3 +464,25 @@
     font-size: 0.75em !important;
   }
 }
+
+/* ===== FILE INFO POPUP STYLING ===== */
+.file-info-popup {
+  position: relative;
+}
+
+.file-info-popup:hover .file-info-content {
+  display: block !important;
+}
+
+.file-info-content {
+  transition: opacity 0.2s ease-in-out;
+  white-space: nowrap;
+}
+
+.file-info-content div {
+  margin-bottom: 4px;
+}
+
+.file-info-content div:last-child {
+  margin-bottom: 0;
+}
