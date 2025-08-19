@@ -71,37 +71,95 @@ class Playouts extends Component {
     this.initHls();
   };
 
+  componentWillUnmount() {
+    // Clean up HLS instance to prevent memory leaks
+    if (this.state.hls) {
+      try {
+        this.state.hls.destroy();
+      } catch (error) {
+        console.log('Error destroying HLS:', error);
+      }
+    }
+  }
+
   initHls = () => {
     const video = this.refs.player;
     if (Hls.isSupported()) {
-      const hls = new Hls({debug: false});
+      const hls = new Hls({
+        debug: false,
+        enableWorker: true,
+        lowLatencyMode: false,
+        backBufferLength: 90
+      });
+      
       this.setState({hls})
-      hls.attachMedia(video);
-      hls.on(Hls.Events.ERROR, (err) => {
-        console.log(err)
-      });
-      hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => {
-        const lang_options = [];
-        const video_options = [];
-
-        hls.allAudioTracks.forEach(k => {
-          // Switch to hebrew
-          if(k.lang === "he") {
-            hls.audioTrack = k.id;
-            this.setState({selected_lang: k.id})
+      
+      // Safely attach media with error handling
+      try {
+        hls.attachMedia(video);
+        
+        // Add error handling for HLS events
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          console.log('HLS Error:', data);
+          if (data.fatal) {
+            switch(data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                console.log('Network error, trying to recover...');
+                hls.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                console.log('Media error, trying to recover...');
+                hls.recoverMediaError();
+                break;
+              default:
+                console.log('Fatal error, destroying HLS instance');
+                hls.destroy();
+                break;
+            }
           }
-          const val = {key:k.lang, text:k.name, value:k.id};
-          lang_options.push(val)
-        })
-        this.setState({lang_options});
+        });
+        
+        // Add ready state handling
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          console.log('HLS manifest parsed successfully');
+        });
+        
+        hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => {
+          try {
+            const lang_options = [];
+            const video_options = [];
 
-        hls.levels.forEach((k,i) => {
-          const val = {key:k.height, text:k.height, value:i};
-          video_options.push(val)
-        })
-        hls.currentLevel = 0
-        this.setState({video_options});
-      });
+            if (hls.allAudioTracks && hls.allAudioTracks.length > 0) {
+              hls.allAudioTracks.forEach(k => {
+                // Switch to hebrew
+                if(k.lang === "he") {
+                  hls.audioTrack = k.id;
+                  this.setState({selected_lang: k.id})
+                }
+                const val = {key:k.lang, text:k.name, value:k.id};
+                lang_options.push(val)
+              });
+              this.setState({lang_options});
+            }
+
+            if (hls.levels && hls.levels.length > 0) {
+              hls.levels.forEach((k,i) => {
+                const val = {key:k.height, text:k.height, value:i};
+                video_options.push(val)
+              });
+              hls.currentLevel = 0;
+              this.setState({video_options});
+            }
+          } catch (error) {
+            console.log('Error in AUDIO_TRACKS_UPDATED:', error);
+          }
+        });
+        
+      } catch (error) {
+        console.log('Error initializing HLS:', error);
+      }
+    } else {
+      console.log('HLS not supported in this browser');
     }
   };
 
@@ -131,22 +189,34 @@ class Playouts extends Component {
   selectFile = (data) => {
     console.log(":: Select file: ", data);
     const {hls} = this.state;
-    let file_source = `https://wfsrv.bbdomain.org/wfapi${data.source.converted.filename}`
+    
+    if (!hls) {
+      console.log("HLS not initialized");
+      return;
+    }
+    
+    try {
+      let file_source = `https://wfsrv.bbdomain.org/wfapi${data.source.converted.filename}`
 
-    // External kmedia
-    //let hls_source = `https://cdn.kab.info/${data.source.kmedia.file_uid}.m3u8`
-    //hls.loadSource(hls_source);
+      // External kmedia
+      //let hls_source = `https://cdn.kab.info/${data.source.kmedia.file_uid}.m3u8`
+      //hls.loadSource(hls_source);
 
-    // Local kmdeia
-    // const path = data.source.kmedia.filename.split('/backup/files/kmedia/')[1]
-    // const uid = data.source.kmedia.file_uid
-    // let hls_source = `https://hls.bbdomain.org/${uid}/${path}/master.m3u8`
+      // Local kmdeia
+      // const path = data.source.kmedia.filename.split('/backup/files/kmedia/')[1]
+      // const uid = data.source.kmedia.file_uid
+      // let hls_source = `https://hls.bbdomain.org/${uid}/${path}/master.m3u8`
 
-    // Local source
-    const path = data.source.converted.filename.split('/backup/files/sources/')[1]
-    let hls_source = `https://src.bbdomain.org/${path}/master.m3u8`
-    hls.loadSource(hls_source);
-    this.setState({hls_source, file_source, file_data: data, file_name: data.file_name, disabled: false});
+      // Local source
+      const path = data.source.converted.filename.split('/backup/files/sources/')[1]
+      let hls_source = `https://src.bbdomain.org/${path}/master.m3u8`
+      
+      // Safely load the source
+      hls.loadSource(hls_source);
+      this.setState({hls_source, file_source, file_data: data, file_name: data.file_name, disabled: false});
+    } catch (error) {
+      console.log("Error loading file:", error);
+    }
   };
 
   setSrc = (src) => {
@@ -483,7 +553,28 @@ class Playouts extends Component {
                     </div>
                   </div>
 
-                                    {/* Add to Playlist Button - Always visible when file is loaded, but disabled when editing */}
+                                    {/* IN/OUT Controls - Moved under the player and skip controls */}
+                  {file_data && (
+                    <div style={{ margin: '16px 0', padding: '12px', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                        <Button as='div' labelPosition='right' className="inout_btn">
+                          <Button icon color='blue' size='large' className="inout_btn" onClick={() => this.setIn(null)} />
+                          <Label as='a' basic pointing='left' onClick={() => this.jumpPoint(inpoint)} style={{ cursor: 'pointer' }}>
+                            { inpoint ? this.formatTime(inpoint) : "<- Set in" }
+                          </Label>
+                        </Button>
+                        <Button as='div' labelPosition='left' className="inout_btn">
+                          <Label as='a' basic pointing='right' color={inpoint > outpoint ? 'red' : undefined}
+                                 onClick={() => this.jumpPoint(outpoint)} style={{ cursor: 'pointer' }}>
+                            {outpoint ? this.formatTime(outpoint) : "Set out ->"}
+                          </Label>
+                          <Button icon color='blue' size='large' className="inout_btn" onClick={() => this.setOut()}/>
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Add to Playlist Button - Always visible when file is loaded, but disabled when editing */}
                   {file_data && (
                     <div style={{ margin: '16px 0', padding: '12px', textAlign: 'center' }}>
                       <Button
@@ -612,25 +703,6 @@ class Playouts extends Component {
                       </Table.Cell>
                     </Table.Row>
                     <Table.Row>
-                      <Table.Cell>IN</Table.Cell>
-                      <Table.Cell>
-                        <Button as='div' labelPosition='right' className="inout_btn">
-                          <Button icon color='grey' className="inout_btn" onClick={() => this.setIn(null)} />
-                          <Label as='a' basic pointing='left' onClick={() => this.jumpPoint(inpoint)} style={{ cursor: 'pointer' }}>
-                            { inpoint ? this.formatTime(inpoint) : "<- Set in" }
-                          </Label>
-                        </Button>
-                      </Table.Cell>
-                      <Table.Cell>OUT</Table.Cell>
-                      <Table.Cell>
-                        <Button as='div' labelPosition='left' className="inout_btn">
-                          <Label as='a' basic pointing='right' color={inpoint > outpoint ? 'red' : undefined}
-                                 onClick={() => this.jumpPoint(outpoint)} style={{ cursor: 'pointer' }}>
-                            {outpoint ? this.formatTime(outpoint) : "Set out ->"}
-                          </Label>
-                          <Button icon color='grey' className="inout_btn" onClick={() => this.setOut()}/>
-                        </Button>
-                      </Table.Cell>
                       <Table.Cell>HLS</Table.Cell>
                       <Table.Cell>
                         <Checkbox toggle checked={isHls} onChange={() => this.setState({isHls: !isHls})} />
@@ -642,28 +714,32 @@ class Playouts extends Component {
 
               {/* Playlist Management - Compact and under IN/OUT controls */}
               <div style={{ marginTop: '16px', textAlign: 'center' }}>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '12px', padding: '12px', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #e9ecef' }}>
-                  <Button disabled={!selected_playlist} onClick={this.loadPlaylist} size="small">Load playlist</Button>
-                  <Dropdown
-                    // disabled={!id}
-                    compact
-                    className=""
-                    selection
-                    options={playlist_options}
-                    value={selected_playlist}
-                    onChange={(e, {value}) => this.editPlaylist(value)}
-                    style={{ minWidth: '200px' }}
-                  >
-                  </Dropdown>
-                  <Button negative disabled={!selected_playlist} onClick={this.removePlaylist} size="small">Remove playlist</Button>
-                </div>
-                
-                {/* Playlist Save Bar - Compact and under Load playlist */}
-                <div style={{ marginTop: '12px', textAlign: 'center' }}>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px', backgroundColor: '#f0f8ff', borderRadius: '6px', border: '1px solid #d1ecf1' }}>
-                    <Button disabled={playlist.length === 0} onClick={this.savePlaylist} size="mini" style={{ width: '120px' }}>Save playlist</Button>
-                    <Input value={playlist_name} placeholder='Playlist name' size="mini" style={{ width: '120px' }} onChange={(e) => {this.setState({playlist_name: e.target.value})}} />
-                    <div style={{ width: '120px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8f9fa', border: '1px solid #dee2e6', borderRadius: '4px', fontSize: '12px', color: '#666' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e9ecef', overflow: 'hidden' }}>
+                  {/* Top Section - Load playlist controls */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', width: '100%', justifyContent: 'center' }}>
+                    <Button disabled={!selected_playlist} onClick={this.loadPlaylist} size="small">Load playlist</Button>
+                    <Dropdown
+                      // disabled={!id}
+                      compact
+                      className=""
+                      selection
+                      options={playlist_options}
+                      value={selected_playlist}
+                      onChange={(e, {value}) => this.editPlaylist(value)}
+                      style={{ minWidth: '200px' }}
+                    >
+                    </Dropdown>
+                    <Button negative disabled={!selected_playlist} onClick={this.removePlaylist} size="small">Remove playlist</Button>
+                  </div>
+                  
+                  {/* Separator line */}
+                  <div style={{ width: '100%', height: '1px', backgroundColor: '#dee2e6' }}></div>
+                  
+                  {/* Bottom Section - Save playlist controls */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', width: '100%', justifyContent: 'center' }}>
+                    <Button disabled={playlist.length === 0} onClick={this.savePlaylist} size="small" style={{ width: '120px' }}>Save playlist</Button>
+                    <Input value={playlist_name} placeholder='Playlist name' size="small" style={{ width: '120px' }} onChange={(e) => {this.setState({playlist_name: e.target.value})}} />
+                    <div style={{ width: '120px', height: '28px', backgroundColor: '#ffffff', border: '1px solid #dee2e6', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: '#666' }}>
                       Total: {toHms(playlist.map((r) => Number(r?.duration)).reduce((su, cur) => su + cur, 0))}
                     </div>
                   </div>
