@@ -25,6 +25,11 @@ import {
 
 class Playouts extends Component {
 
+  constructor(props) {
+    super(props);
+    this.playerRef = React.createRef();
+  }
+
   state = {
     autoplay: false,
     disabled: true,
@@ -63,12 +68,16 @@ class Playouts extends Component {
   };
 
   componentDidMount() {
-    getData('shidur/playlist', playlist_db => {
-      console.log(playlist_db);
-      this.setState({playlist_db})
-    })
-    this.getWorkflow(this.state.date);
-    this.initHls();
+    try {
+      getData('shidur/playlist', playlist_db => {
+        console.log(playlist_db);
+        this.setState({playlist_db})
+      })
+      this.getWorkflow(this.state.date);
+      this.initHls();
+    } catch (error) {
+      console.error('Error in componentDidMount:', error);
+    }
   };
 
   componentWillUnmount() {
@@ -83,7 +92,7 @@ class Playouts extends Component {
   }
 
   initHls = () => {
-    const video = this.refs.player;
+    const video = this.playerRef.current;
     if (Hls.isSupported()) {
       const hls = new Hls({
         debug: false,
@@ -183,15 +192,15 @@ class Playouts extends Component {
   };
 
   setIn = () => {
-    let currentTime = this.refs.player.currentTime;
+    let currentTime = this.playerRef.current.currentTime;
     // Round down to the start of the current second
     let alignedTime = Math.floor(currentTime) * 1000;
     console.log(":: Set IN: ", alignedTime, "(original:", currentTime * 1000, ")");
     this.setState({inpoint: alignedTime});
   };
 
-  setOut= () => {
-    let currentTime = this.refs.player.currentTime;
+  setOut = () => {
+    let currentTime = this.playerRef.current.currentTime;
     // Round up to the end of the current second
     let alignedTime = Math.ceil(currentTime) * 1000;
     console.log(":: Set OUT: ", alignedTime, "(original:", currentTime * 1000, ")");
@@ -205,12 +214,19 @@ class Playouts extends Component {
     });
   };
 
-  selectFile = (data) => {
-    console.log(":: Select file: ", data);
-    const {hls} = this.state;
+  selectFile = (sourceId) => {
+    console.log(":: Select file by source_id: ", sourceId);
+    const {hls, files} = this.state;
     
     if (!hls) {
       console.log("HLS not initialized");
+      return;
+    }
+    
+    // Find the file data by source_id
+    const data = files.find(file => file.source_id === sourceId);
+    if (!data) {
+      console.log("File not found for source_id:", sourceId);
       return;
     }
     
@@ -331,7 +347,7 @@ class Playouts extends Component {
   }
 
   skipTime = (seconds) => {
-    const video = this.refs.player;
+    const video = this.playerRef.current;
     if (video && !isNaN(video.currentTime)) {
       const newTime = video.currentTime + seconds;
       if (newTime >= 0 && newTime <= video.duration) {
@@ -365,14 +381,14 @@ class Playouts extends Component {
 
   // Function to jump player to specific time
   jumpPoint = (timeInMilliseconds) => {
-    if (!timeInMilliseconds || !this.refs.player) return;
+    if (!timeInMilliseconds || !this.playerRef.current) return;
     
     // Convert milliseconds to seconds for the video player
     const timeInSeconds = timeInMilliseconds / 1000;
     
     try {
       // Set the player's current time
-      this.refs.player.currentTime = timeInSeconds;
+      this.playerRef.current.currentTime = timeInSeconds;
       console.log(`Jumped to time: ${this.formatTime(timeInMilliseconds)} (${timeInSeconds}s)`);
     } catch (error) {
       console.log('Error during jump operation:', error);
@@ -381,7 +397,7 @@ class Playouts extends Component {
 
   // Function to jump to the end of the video
   jumpToEnd = () => {
-    const video = this.refs.player;
+    const video = this.playerRef.current;
     if (!video || !video.duration) return;
     
     try {
@@ -509,13 +525,16 @@ class Playouts extends Component {
   }
 
   render() {
-    const {isHls, inpoint, outpoint, find_uid, autoplay, selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate, editingPlaylistIndex, showSettings} = this.state;
+    try {
+      const {isHls, inpoint, outpoint, find_uid, autoplay, selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate, editingPlaylistIndex, showSettings} = this.state;
 
-    let files_list = files.map((data, i) => {
-      return ({ key: data.source_id, text: data.file_name, value: data })
-    });
+    let files_list = (files || []).map((data, i) => {
+      if (!data || !data.source_id || !data.file_name) return null;
+      return ({ key: data.source_id, text: data.file_name, value: data.source_id })
+    }).filter(Boolean);
 
-    const list = playlist.map((data, i) => {
+    const list = (playlist || []).map((data, i) => {
+      if (!data) return null;
       const {source_id, file_name, uid, duration, inpoint, outpoint} = data;
       const clipDuration = this.calculateClipDuration(inpoint, outpoint);
       return (
@@ -550,11 +569,12 @@ class Playouts extends Component {
           </Table.Cell>
         </Table.Row>
       )
-    });
+    }).filter(Boolean);
 
-    const playlist_options = Object.keys(playlist_db).map((k) => {
+    const playlist_options = Object.keys(playlist_db || {}).map((k) => {
+      if (!k) return null;
       return ({key: k, text: k, value: k})
-    })
+    }).filter(Boolean)
 
     const src_options = [
       { key: 1, text: 'Workflow', value: 'Workflow' },
@@ -565,7 +585,7 @@ class Playouts extends Component {
       <Segment textAlign='center' >
 
         <Grid>
-          <GridRow columns={2} divided stackable>
+          <GridRow columns={2} divided stackable="true">
             <GridColumn stretched>
               <Segment>
                 <div style={{ width: '100%', maxWidth: '640px', margin: '0 auto', position: 'relative' }}>
@@ -590,15 +610,15 @@ class Playouts extends Component {
                     ⚙️
                   </Button>
                   
-                  <video
-                    ref='player'
-                    width="100%"
-                    height="auto"
-                    style={{ maxWidth: '100%', height: 'auto' }}
-                    // autoPlay
-                    controls
-                    playsInline={true}
-                  />
+                                     <video
+                     ref={this.playerRef}
+                      width="100%"
+                      height="auto"
+                      style={{ maxWidth: '100%', height: 'auto' }}
+                      // autoPlay
+                      controls
+                      playsInline={true}
+                   />
                   
                   {/* Skip Controls */}
                   <div className="skip-controls" style={{ margin: '16px 0' }}>
@@ -726,7 +746,7 @@ class Playouts extends Component {
                             scrolling={false}
                             placeholder="Select File To Play:"
                             selection
-                            value={file_data}
+                            value={file_data?.source_id || ''}
                             options={files_list}
                             onChange={(e,{value}) => this.selectFile(value)}
                             // onClick={() => this.getWorkflow(this.state.date)}
@@ -802,12 +822,13 @@ class Playouts extends Component {
                     <Button disabled={playlist.length === 0} onClick={this.savePlaylist} size="small">Save playlist</Button>
                     <Input value={playlist_name} placeholder='Playlist name' size="small" style={{ minWidth: '200px' }} onChange={(e) => {this.setState({playlist_name: e.target.value})}} />
                     <div style={{ padding: '8px 12px', backgroundColor: '#ffffff', border: '1px solid #dee2e6', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: '#666' }}>
-                     Total: {toHms(playlist.map((r) => {
+                     Total: {toHms((playlist || []).map((r) => {
+                       if (!r) return 0;
                        // Calculate clip duration from in/out points, or use full duration if no trimming
-                       if (r?.inpoint && r?.outpoint) {
+                       if (r.inpoint && r.outpoint) {
                          return (r.outpoint - r.inpoint) / 1000; // Convert milliseconds to seconds
                        }
-                       return Number(r?.duration) || 0;
+                       return Number(r.duration) || 0;
                      }).reduce((su, cur) => su + cur, 0))}
                    </div>
                   </div>
@@ -945,6 +966,15 @@ class Playouts extends Component {
         )}
       </Segment>
     );
+    } catch (error) {
+      console.error('Error in render:', error);
+      return (
+        <Segment textAlign='center'>
+          <h3>Something went wrong</h3>
+          <p>Please refresh the page and try again.</p>
+        </Segment>
+      );
+    }
   }
 }
 
