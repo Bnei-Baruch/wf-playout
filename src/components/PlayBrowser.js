@@ -233,6 +233,16 @@ class Playouts extends Component {
     })
   }
 
+  skipTime = (seconds) => {
+    const video = this.refs.player;
+    if (video && !isNaN(video.currentTime)) {
+      const newTime = video.currentTime + seconds;
+      if (newTime >= 0 && newTime <= video.duration) {
+        video.currentTime = newTime;
+      }
+    }
+  }
+
   render() {
     const {isHls, inpoint, outpoint ,find_uid, autoplay, selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate} = this.state;
 
@@ -269,17 +279,36 @@ class Playouts extends Component {
         </Label>
 
         <Grid>
-          <GridRow columns={2} divided>
+          <GridRow columns={2} divided stackable>
             <GridColumn stretched>
               <Segment>
-                <video
-                  ref='player'
-                  width={640}
-                  height={360}
-                  // autoPlay
-                  controls
-                  playsInline={true}
-                />
+                <div style={{ width: '100%', maxWidth: '640px', margin: '0 auto' }}>
+                  <video
+                    ref='player'
+                    width="100%"
+                    height="auto"
+                    style={{ maxWidth: '100%', height: 'auto' }}
+                    // autoPlay
+                    controls
+                    playsInline={true}
+                  />
+                  
+                  {/* Skip Controls */}
+                  <div className="skip-controls" style={{ margin: '16px 0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                      <Button onClick={() => this.skipTime(-300)} size="small">-5m</Button>
+                      <Button onClick={() => this.skipTime(-60)} size="small">-1m</Button>
+                      <Button onClick={() => this.skipTime(-10)} size="small">-10s</Button>
+                      <Button onClick={() => this.skipTime(-5)} size="small">-5s</Button>
+                      <Button onClick={() => this.skipTime(-1)} size="small">-1s</Button>
+                      <Button onClick={() => this.skipTime(1)} size="small">+1s</Button>
+                      <Button onClick={() => this.skipTime(5)} size="small">+5s</Button>
+                      <Button onClick={() => this.skipTime(10)} size="small">+10s</Button>
+                      <Button onClick={() => this.skipTime(60)} size="small">+1m</Button>
+                      <Button onClick={() => this.skipTime(300)} size="small">+5m</Button>
+                    </div>
+                  </div>
+                </div>
                 <Label attached='bottom' size='big' >
                   <Dropdown
                     // disabled={!id}
@@ -308,7 +337,7 @@ class Playouts extends Component {
             </GridColumn>
             <GridColumn>
               <Segment>
-                <Table basic='very'>
+                <Table basic='very' unstackable>
                   <Table.Header>
                     <Table.Row>
                       <Table.HeaderCell/>
@@ -327,6 +356,7 @@ class Playouts extends Component {
                         <Button
                           disabled={!file_data}
                           onClick={this.addToPlaylist}
+                          size="small"
                         >Add to playlist
                         </Button>
                         {/*<Dropdown*/}
@@ -361,7 +391,7 @@ class Playouts extends Component {
                           placeholder='36SHmz3G'
                           value={find_uid}
                           onChange={(e, { value }) => this.setState({find_uid: value})}
-                        ><input /><Button onClick={() => this.findByUID()}>Find</Button></Input>
+                        ><input /><Button onClick={() => this.findByUID()} size="small">Find</Button></Input>
                       </Table.Cell>
                     </Table.Row>
                     <Table.Row>
@@ -476,11 +506,11 @@ class Playouts extends Component {
           </GridRow>
           <GridRow>
             <GridColumn>
-              <Table color="red" >
+              <Table color="red" unstackable>
                 <Table.Header>
                   <Table.Row>
                     <Table.HeaderCell>
-                      <Button disabled={!selected_playlist} onClick={this.loadPlaylist}>Load playlist</Button>
+                      <Button disabled={!selected_playlist} onClick={this.loadPlaylist} size="small">Load playlist</Button>
                     </Table.HeaderCell>
                     <Table.HeaderCell>
                       <Dropdown
@@ -495,7 +525,7 @@ class Playouts extends Component {
                       </Dropdown>
                     </Table.HeaderCell>
                     <Table.HeaderCell>
-                      <Button negative disabled={!selected_playlist} onClick={this.removePlaylist}>Remove playlist</Button>
+                      <Button negative disabled={!selected_playlist} onClick={this.removePlaylist} size="small">Remove playlist</Button>
                     </Table.HeaderCell>
                     <Table.HeaderCell></Table.HeaderCell>
                     <Table.HeaderCell></Table.HeaderCell>
@@ -506,10 +536,10 @@ class Playouts extends Component {
           </GridRow>
           <GridRow>
             <GridColumn>
-              <Table color="blue">
+              <Table color="blue" unstackable>
                 <Table.Footer>
                   <Table.Row>
-                    <Table.HeaderCell><Button disabled={playlist.length === 0} onClick={this.savePlaylist}>Save playlist</Button></Table.HeaderCell>
+                    <Table.HeaderCell><Button disabled={playlist.length === 0} onClick={this.savePlaylist} size="small">Save playlist</Button></Table.HeaderCell>
                     <Table.HeaderCell><Input value={playlist_name} placeholder='Playlist name' onChange={(e) => {this.setState({playlist_name: e.target.value})}} /></Table.HeaderCell>
                     <Table.HeaderCell>
                       <DatePicker
@@ -536,7 +566,7 @@ class Playouts extends Component {
           </GridRow>
           <GridRow>
             <GridColumn>
-              <Table>
+              <Table unstackable>
                 <Table.Header>
                   <Table.Row>
                     <Table.HeaderCell>ID</Table.HeaderCell>
