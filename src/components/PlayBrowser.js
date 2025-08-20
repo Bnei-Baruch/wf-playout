@@ -744,6 +744,7 @@ class Playouts extends Component {
                             selectOnNavigation={false}
                             error={this.state.disabled}
                             scrolling={false}
+                            direction="up"
                             placeholder="Select File To Play:"
                             selection
                             value={file_data?.source_id || ''}
@@ -805,6 +806,7 @@ class Playouts extends Component {
                       compact
                       className=""
                       selection
+                      direction="up"
                       options={playlist_options}
                       value={selected_playlist}
                       onChange={(e, {value}) => this.editPlaylist(value)}
