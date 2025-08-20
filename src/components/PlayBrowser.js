@@ -797,7 +797,7 @@ class Playouts extends Component {
 
               {/* Playlist Management - Compact and under IN/OUT controls */}
               <div style={{ marginTop: '16px', textAlign: 'center' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e9ecef', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e9ecef' }}>
                   {/* Top Section - Load playlist controls */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', width: '100%', justifyContent: 'center' }}>
                     <Button disabled={!selected_playlist} onClick={this.loadPlaylist} size="small">Load playlist</Button>
@@ -810,7 +810,7 @@ class Playouts extends Component {
                       options={playlist_options}
                       value={selected_playlist}
                       onChange={(e, {value}) => this.editPlaylist(value)}
-                      style={{ minWidth: '200px' }}
+                      style={{ minWidth: '200px', position: 'relative' }}
                     >
                     </Dropdown>
                     <Button negative disabled={!selected_playlist} onClick={this.removePlaylist} size="small">Remove playlist</Button>
@@ -893,6 +893,9 @@ class Playouts extends Component {
               top: auto !important;
               bottom: 100% !important;
               margin-bottom: 0.5em !important;
+              max-height: 200px !important;
+              overflow-y: auto !important;
+              z-index: 9999 !important;
             }
             .playlist-dropdown-up .ui.selection.dropdown .menu:before,
             .files-dropdown-up .ui.selection.dropdown .menu:before {
@@ -907,6 +910,11 @@ class Playouts extends Component {
               bottom: -0.5em !important;
               border-top: 0.5em solid #fff !important;
               border-bottom: none !important;
+            }
+            .playlist-dropdown-up .ui.selection.dropdown,
+            .files-dropdown-up .ui.selection.dropdown {
+              position: relative !important;
+              z-index: 9999 !important;
             }
           `}
         </style>
