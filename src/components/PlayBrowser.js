@@ -744,7 +744,7 @@ class Playouts extends Component {
                             selectOnNavigation={false}
                             error={this.state.disabled}
                             scrolling={false}
-                            direction="up"
+                            className="files-dropdown-up"
                             placeholder="Select File To Play:"
                             selection
                             value={file_data?.source_id || ''}
@@ -804,9 +804,9 @@ class Playouts extends Component {
                     <Dropdown
                       // disabled={!id}
                       compact
-                      className=""
+                      className="playlist-dropdown-up"
                       selection
-                      direction="up"
+                      scrolling
                       options={playlist_options}
                       value={selected_playlist}
                       onChange={(e, {value}) => this.editPlaylist(value)}
@@ -884,6 +884,32 @@ class Playouts extends Component {
             </GridColumn>
           </GridRow>
         </Grid>
+
+        {/* Custom CSS for upward dropdown */}
+        <style>
+          {`
+            .playlist-dropdown-up .ui.selection.dropdown .menu,
+            .files-dropdown-up .ui.selection.dropdown .menu {
+              top: auto !important;
+              bottom: 100% !important;
+              margin-bottom: 0.5em !important;
+            }
+            .playlist-dropdown-up .ui.selection.dropdown .menu:before,
+            .files-dropdown-up .ui.selection.dropdown .menu:before {
+              top: auto !important;
+              bottom: -0.5em !important;
+              border-top: 0.5em solid #fff !important;
+              border-bottom: none !important;
+            }
+            .playlist-dropdown-up .ui.selection.dropdown .menu:after,
+            .files-dropdown-up .ui.selection.dropdown .menu:after {
+              top: auto !important;
+              bottom: -0.5em !important;
+              border-top: 0.5em solid #fff !important;
+              border-bottom: none !important;
+            }
+          `}
+        </style>
 
         {/* Settings Modal */}
         {showSettings && (
