@@ -311,6 +311,25 @@ class Playouts extends Component {
     } )
   };
 
+  generatePlaylist = async () => {
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/playlist/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      if (!response.ok) {
+        throw new Error('Failed to generate playlist');
+      }
+      const result = await response.json();
+      alert('Playlist generated successfully!');
+      console.log('Playlist generated:', result);
+    } catch (error) {
+      alert('Failed to generate playlist');
+      console.error('Error generating playlist:', error);
+    }
+  }
   setPlaylistDate = (data) => {
     console.log(":: setPlaylistDate: ", data);
     let date = data.toLocaleDateString('sv');
@@ -814,6 +833,8 @@ class Playouts extends Component {
                     >
                     </Dropdown>
                     <Button negative disabled={!selected_playlist} onClick={this.removePlaylist} size="small">Remove playlist</Button>
+                    <Button onClick={this.generatePlaylist} size="small" color="green">Generate Playlists</Button>
+
                   </div>
                   
                   {/* Separator line */}
@@ -831,7 +852,9 @@ class Playouts extends Component {
                          return (r.outpoint - r.inpoint) / 1000; // Convert milliseconds to seconds
                        }
                        return Number(r.duration) || 0;
-                     }).reduce((su, cur) => su + cur, 0))}
+                   
+                   }).reduce((su, cur) => su + cur, 0))}
+                  
                    </div>
                   </div>
                 </div>
