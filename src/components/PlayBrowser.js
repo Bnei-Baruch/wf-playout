@@ -778,7 +778,7 @@ class Playouts extends Component {
 
                                     {/* IN/OUT Controls - Moved under the player and skip controls */}
                   {file_data && (
-                    <div style={{ margin: '16px 0', padding: '12px', textAlign: 'center' }}>
+                    <div style={{ margin: '12px 0', padding: '6px', textAlign: 'center' }}>
                       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
                         <Button as='div' labelPosition='right' className="inout_btn">
                           <Button icon color='blue' size='large' className="inout_btn" onClick={() => this.setIn()} />
@@ -807,7 +807,7 @@ class Playouts extends Component {
 
                   {/* Add to Playlist Button - Always visible when file is loaded, but disabled when editing */}
                   {file_data && (
-                    <div style={{ margin: '16px 0', padding: '12px', textAlign: 'center' }}>
+                    <div style={{ margin: '12px 0', padding: '6px', textAlign: 'center' }}>
                       <Button
                         secondary
                         size="small"
@@ -932,7 +932,7 @@ class Playouts extends Component {
               <div style={{ marginTop: '16px', textAlign: 'center' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e9ecef' }}>
                   {/* Top Section - Load playlist controls */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', width: '100%', justifyContent: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px', width: '100%', justifyContent: 'center' }}>
                     <Button disabled={!selected_playlist} onClick={this.loadPlaylist} size="small">Load playlist</Button>
                     <Dropdown
                       // disabled={!id}
@@ -955,10 +955,10 @@ class Playouts extends Component {
                   <div style={{ width: '100%', height: '1px', backgroundColor: '#dee2e6' }}></div>
                   
                   {/* Bottom Section - Save playlist controls */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '30px', padding: '27px', width: '100%', justifyContent: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '20px', padding: '12px', width: '100%', justifyContent: 'center' }}>
                     <Button disabled={!allHaveEndHafaka} onClick={this.savePlaylist} size="small" color={hasUnsaved ? 'orange' : undefined}>Save playlist</Button>
                     <Input value={playlist_name} placeholder='Playlist name' size="small" style={{ minWidth: '200px' }} onChange={(e) => {this.setState({playlist_name: e.target.value})}} />
-                    <div style={{ padding: '8px 12px', backgroundColor: '#ffffff', border: '1px solid #dee2e6', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: '#666' }}>
+                    <div style={{ padding: '4px 8px', backgroundColor: '#ffffff', border: '1px solid #dee2e6', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: '#666' }}>
                      Total: {toHms((playlist || []).map((r, idx) => {
                        if (!r) return 0;
                        const liveIn = (editingPlaylistIndex === idx && (inpoint || inpoint === 0)) ? inpoint : r.inpoint;
