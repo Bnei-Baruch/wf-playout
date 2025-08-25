@@ -195,7 +195,26 @@ class Playouts extends Component {
 
   setIn = (value) => {
     if (value === null) {
-      this.setState({inpoint: null, outpoint: null, end_hafaka: null, hasUnsavedChanges: true});
+      const { editingPlaylistIndex, playlist } = this.state;
+      let updatedPlaylist = playlist;
+      if (editingPlaylistIndex !== null && editingPlaylistIndex !== undefined && playlist && playlist[editingPlaylistIndex]) {
+        updatedPlaylist = [...playlist];
+        const item = { ...updatedPlaylist[editingPlaylistIndex] };
+        item.inpoint = null;
+        item.outpoint = null;
+        item.end_hafaka = null;
+        if (item.file_path) {
+          item.hls_path = `https://src.bbdomain.org/${item.file_path}/master.m3u8`;
+        }
+        updatedPlaylist[editingPlaylistIndex] = item;
+      }
+      this.setState({
+        inpoint: null,
+        outpoint: null,
+        end_hafaka: null,
+        playlist: updatedPlaylist,
+        hasUnsavedChanges: true
+      });
       return;
     }
     let currentTime = this.playerRef.current.currentTime;
@@ -383,8 +402,19 @@ class Playouts extends Component {
     const json = {autoplay, playlist: finalPlaylist, date, total}
     putData(`shidur/playlist/${playlist_name}`, json, data => {
       console.log(":: Save playlist: ", json, data);
-      // Reflect saved data in state
-      this.setState({ playlist: finalPlaylist, hasUnsavedChanges: false });
+      // Reflect saved data in state and refresh playlist_db so Load uses fresh data
+      // Update local playlist_db entry immediately
+      this.setState(prev => {
+        const updatedDb = { ...(prev.playlist_db || {}) };
+        updatedDb[playlist_name] = { autoplay, playlist: finalPlaylist, date, total };
+        return { playlist: finalPlaylist, playlist_db: updatedDb, hasUnsavedChanges: false };
+      });
+      // Also re-fetch from server to ensure canonical data
+      try {
+        getData('shidur/playlist', playlist_db => {
+          this.setState({playlist_db});
+        });
+      } catch (e) { console.log('Refresh playlist_db failed:', e); }
     } )
   };
 
@@ -686,7 +716,11 @@ class Playouts extends Component {
     ];
 
     const hasUnsaved = this.state.hasUnsavedChanges;
-    const allHaveEndHafaka = (playlist || []).length > 0 && (playlist || []).every(r => r && (r.end_hafaka !== null && r.end_hafaka !== undefined));
+    const allHaveEndHafaka = (playlist || []).length > 0 && (playlist || []).every((r, idx) => {
+      if (!r) return false;
+      const liveEnd = (editingPlaylistIndex === idx) ? end_hafaka : r.end_hafaka;
+      return liveEnd !== null && liveEnd !== undefined;
+    });
 
     return(
       <Segment textAlign='center' >
