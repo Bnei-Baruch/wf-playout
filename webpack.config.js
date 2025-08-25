@@ -12,7 +12,7 @@ const envKeys = Object.keys(env).reduce((prev, next) => {
 
 module.exports = {
   devServer: {
-    port: '3000',
+    port: '3001',
     compress: true,
   },
   devtool: "source-map",
@@ -25,7 +25,6 @@ module.exports = {
   resolve: {
     modules: [path.join(__dirname, 'src'), 'node_modules'],
     alias: {
-      react: path.join(__dirname, 'node_modules', 'react'),
     },
     extensions: [ '.ts', '.js' ],
     fallback: {

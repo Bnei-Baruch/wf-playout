@@ -7,7 +7,6 @@
     "build": "webpack --mode=production",
     "deploy": "webpack --mode=production && scripts/deploy.sh"
   },
-  "packageManager": "yarn@4.3.1",
   "dependencies": {
     "@babel/runtime": "^7.24.8",
     "fomantic-ui-css": "^2.9.3",
