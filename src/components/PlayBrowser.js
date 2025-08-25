@@ -364,6 +364,13 @@ class Playouts extends Component {
       finalPlaylist = updated;
     }
 
+    // Guard: prevent save if any item lacks end_hafaka
+    const missingEnd = (finalPlaylist || []).some(r => !r || r.end_hafaka === null || r.end_hafaka === undefined);
+    if (missingEnd) {
+      alert('Cannot save: All playlist items must have End Hafaka set.');
+      return;
+    }
+
     // Calculate total duration using in -> end_hafaka
     const total = toHms((finalPlaylist || []).map((r) => {
       if (!r) return 0;
@@ -679,6 +686,7 @@ class Playouts extends Component {
     ];
 
     const hasUnsaved = this.state.hasUnsavedChanges;
+    const allHaveEndHafaka = (playlist || []).length > 0 && (playlist || []).every(r => r && (r.end_hafaka !== null && r.end_hafaka !== undefined));
 
     return(
       <Segment textAlign='center' >
@@ -914,7 +922,7 @@ class Playouts extends Component {
                   
                   {/* Bottom Section - Save playlist controls */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '30px', padding: '27px', width: '100%', justifyContent: 'center' }}>
-                    <Button disabled={playlist.length === 0} onClick={this.savePlaylist} size="small" color={hasUnsaved ? 'orange' : undefined}>Save playlist</Button>
+                    <Button disabled={!allHaveEndHafaka} onClick={this.savePlaylist} size="small" color={hasUnsaved ? 'orange' : undefined}>Save playlist</Button>
                     <Input value={playlist_name} placeholder='Playlist name' size="small" style={{ minWidth: '200px' }} onChange={(e) => {this.setState({playlist_name: e.target.value})}} />
                     <div style={{ padding: '8px 12px', backgroundColor: '#ffffff', border: '1px solid #dee2e6', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: '#666' }}>
                      Total: {toHms((playlist || []).map((r, idx) => {
