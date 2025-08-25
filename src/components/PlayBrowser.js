@@ -62,9 +62,11 @@ class Playouts extends Component {
     selected_playlist: "",
     inpoint: null,
     outpoint: null,
+    end_hafaka: null,
     isHls: true,
     editingPlaylistIndex: null,
-    showSettings: false
+    showSettings: false,
+    hasUnsavedChanges: false
   };
 
   componentDidMount() {
@@ -191,20 +193,47 @@ class Playouts extends Component {
     }
   };
 
-  setIn = () => {
+  setIn = (value) => {
+    if (value === null) {
+      this.setState({inpoint: null, outpoint: null, end_hafaka: null, hasUnsavedChanges: true});
+      return;
+    }
     let currentTime = this.playerRef.current.currentTime;
-    // Round down to the start of the current second
     let alignedTime = Math.floor(currentTime) * 1000;
     console.log(":: Set IN: ", alignedTime, "(original:", currentTime * 1000, ")");
-    this.setState({inpoint: alignedTime});
+    this.setState({inpoint: alignedTime, hasUnsavedChanges: true});
   };
 
   setOut = () => {
     let currentTime = this.playerRef.current.currentTime;
-    // Round up to the end of the current second
     let alignedTime = Math.ceil(currentTime) * 1000;
     console.log(":: Set OUT: ", alignedTime, "(original:", currentTime * 1000, ")");
-    this.setState({outpoint: alignedTime});
+    const updates = { outpoint: alignedTime };
+    if (this.state.inpoint === null || this.state.inpoint === undefined) {
+      const { editingPlaylistIndex, playlist } = this.state;
+      const savedIn = (editingPlaylistIndex !== null && editingPlaylistIndex !== undefined && playlist[editingPlaylistIndex]) ? playlist[editingPlaylistIndex].inpoint : null;
+      if (savedIn === null || savedIn === undefined) {
+        updates.inpoint = 0;
+        console.log(":: Auto-set IN point to 0 (no saved inpoint)");
+      }
+    }
+    this.setState({...updates, hasUnsavedChanges: true});
+  };
+
+  setEndHafaka = () => {
+    let currentTime = this.playerRef.current.currentTime;
+    let alignedTime = Math.ceil(currentTime) * 1000;
+    console.log(":: Set END HAFAKA: ", alignedTime, "(original:", currentTime * 1000, ")");
+    const updates = { end_hafaka: alignedTime };
+    if (this.state.inpoint === null || this.state.inpoint === undefined) {
+      const { editingPlaylistIndex, playlist } = this.state;
+      const savedIn = (editingPlaylistIndex !== null && editingPlaylistIndex !== undefined && playlist[editingPlaylistIndex]) ? playlist[editingPlaylistIndex].inpoint : null;
+      if (savedIn === null || savedIn === undefined) {
+        updates.inpoint = 0;
+        console.log(":: Auto-set IN point to 0 (no saved inpoint)");
+      }
+    }
+    this.setState({...updates, hasUnsavedChanges: true});
   };
 
   getWorkflow = (date) => {
@@ -248,7 +277,7 @@ class Playouts extends Component {
       
       // Safely load the source
       hls.loadSource(hls_source);
-      this.setState({hls_source, file_source, file_data: data, file_name: data.file_name, disabled: false});
+      this.setState({hls_source, file_source, file_data: data, file_name: data.file_name, disabled: false, inpoint: null, outpoint: null, end_hafaka: null});
     } catch (error) {
       console.log("Error loading file:", error);
     }
@@ -285,29 +314,70 @@ class Playouts extends Component {
   };
 
   addToPlaylist = () => {
-    const {isHls, inpoint, outpoint, hls_source, file_data, playlist} = this.state;
+    const {isHls, inpoint, outpoint, end_hafaka, hls_source, file_data, playlist} = this.state;
     const {source_id, sha1, file_name, line: {uid}, source: {converted: {filename, file_uid, duration}}} = file_data;
     const path = filename.split('/backup/files/sources/')[1]
+    
+    let finalInpoint = inpoint;
+    if ((finalInpoint === null || finalInpoint === undefined) && (outpoint !== null && outpoint !== undefined || end_hafaka !== null && end_hafaka !== undefined)) {
+      finalInpoint = 0;
+      console.log(":: Auto-set IN point to 0 for playlist item");
+    }
+    
     let hls_path
-    if(inpoint && outpoint) {
-      hls_path = `https://src.bbdomain.org/${path}/clipFrom/${inpoint}/clipTo/${outpoint}/master.m3u8`
+    if ((finalInpoint !== null && finalInpoint !== undefined) && (outpoint !== null && outpoint !== undefined)) {
+      hls_path = `https://src.bbdomain.org/${path}/clipFrom/${finalInpoint}/clipTo/${outpoint}/master.m3u8`
     } else {
       hls_path = `https://src.bbdomain.org/${path}/master.m3u8`
     }
-    const playraw = {source_id, sha1, file_name, uid, file_uid, duration, file_path: path, hls_path, isHls, inpoint, outpoint};
+    const playraw = {source_id, sha1, file_name, uid, file_uid, duration, file_path: path, hls_path, isHls, inpoint: finalInpoint, outpoint, end_hafaka};
     playlist.push(playraw);
-    this.setState({playlist});
+    this.setState({playlist, hasUnsavedChanges: true});
     console.log(playlist)
   };
 
   savePlaylist = () => {
-    const {autoplay, playlist, playlist_name, playlistDate} = this.state;
+    const {autoplay, playlist, playlist_name, playlistDate, editingPlaylistIndex, inpoint, outpoint, end_hafaka} = this.state;
     const date = playlistDate.toUTCString();
-    const total = toHms(playlist.map((r) => Number(r?.duration)).reduce((su, cur) => su + cur, 0));
-    const json = {autoplay, playlist, date, total}
+
+    // Build the final playlist synchronously with any live edits applied
+    let finalPlaylist = playlist;
+    if (editingPlaylistIndex !== null && editingPlaylistIndex !== undefined && playlist[editingPlaylistIndex]) {
+      const updated = [...playlist];
+      // Prefer saved inpoint if present, else use live inpoint, else 0 when needed
+      let finalIn = inpoint;
+      if ((finalIn === null || finalIn === undefined) && (outpoint !== null && outpoint !== undefined || end_hafaka !== null && end_hafaka !== undefined)) {
+        const savedIn = updated[editingPlaylistIndex].inpoint;
+        finalIn = (savedIn !== null && savedIn !== undefined) ? savedIn : 0;
+      }
+      updated[editingPlaylistIndex] = {
+        ...updated[editingPlaylistIndex],
+        inpoint: finalIn,
+        outpoint,
+        end_hafaka
+      };
+      // Update HLS path if we have valid in/out (allow inpoint=0)
+      if ((finalIn !== null && finalIn !== undefined) && (outpoint !== null && outpoint !== undefined)) {
+        const { file_path } = updated[editingPlaylistIndex];
+        updated[editingPlaylistIndex].hls_path = `https://src.bbdomain.org/${file_path}/clipFrom/${finalIn}/clipTo/${outpoint}/master.m3u8`;
+      }
+      finalPlaylist = updated;
+    }
+
+    // Calculate total duration using in -> end_hafaka
+    const total = toHms((finalPlaylist || []).map((r) => {
+      if (!r) return 0;
+      if (r.inpoint !== null && r.inpoint !== undefined && r.end_hafaka !== null && r.end_hafaka !== undefined) {
+        return (r.end_hafaka - r.inpoint) / 1000;
+      }
+      return Number(r.duration) || 0;
+    }).reduce((su, cur) => su + cur, 0));
+
+    const json = {autoplay, playlist: finalPlaylist, date, total}
     putData(`shidur/playlist/${playlist_name}`, json, data => {
       console.log(":: Save playlist: ", json, data);
-      //TODO: Clear state
+      // Reflect saved data in state
+      this.setState({ playlist: finalPlaylist, hasUnsavedChanges: false });
     } )
   };
 
@@ -381,10 +451,11 @@ class Playouts extends Component {
     }
   }
 
-  // Helper function to calculate clip duration from in/out points
-  calculateClipDuration = (inpoint, outpoint) => {
-    if (!inpoint || !outpoint) return 0;
-    return outpoint - inpoint;
+  // Helper function to calculate clip duration from in point to end_hafaka
+  calculateClipDuration = (inpoint, end_hafaka) => {
+    if (inpoint === null || inpoint === undefined) return 0;
+    if (end_hafaka === null || end_hafaka === undefined) return 0;
+    return end_hafaka - inpoint;
   }
 
   // Helper function to format time in HH:MM:SS format
@@ -420,11 +491,14 @@ class Playouts extends Component {
     if (!video || !video.duration) return;
     
     try {
-      // Jump to the end (subtract 1 second to avoid going past the end)
-      const endTime = Math.max(0, video.duration - 1);
-      video.currentTime = endTime;
+      // Jump to the last rounded whole second (avoid exact end when duration is integer)
+      let lastSec = Math.floor(video.duration);
+      if (Math.abs(lastSec - video.duration) < 1e-6) {
+        lastSec = Math.max(0, lastSec - 1);
+      }
+      video.currentTime = lastSec;
       
-      console.log(`Jumped to end: ${endTime}s`);
+      console.log(`Jumped to end rounded second: ${lastSec}s`);
     } catch (error) {
       console.log('Error during jump to end operation:', error);
     }
@@ -461,12 +535,14 @@ class Playouts extends Component {
     this.setState({
       inpoint: playlistItem.inpoint || null,
       outpoint: playlistItem.outpoint || null,
+      end_hafaka: playlistItem.end_hafaka || null,
       editingPlaylistIndex: index !== null ? index : this.state.editingPlaylistIndex,
       file_data: file_data,
-      file_name: playlistItem.file_name
+      file_name: playlistItem.file_name,
+      hasUnsavedChanges: false
     });
     
-    console.log('Set in/out points:', { inpoint: playlistItem.inpoint, outpoint: playlistItem.outpoint });
+    console.log('Set in/out points:', { inpoint: playlistItem.inpoint, outpoint: playlistItem.outpoint, end_hafaka: playlistItem.end_hafaka });
     console.log('Set file_data for editing:', file_data);
   }
 
@@ -479,27 +555,30 @@ class Playouts extends Component {
 
   // Update the currently loaded playlist item with new in/out points
   updateCurrentPlaylistItem = () => {
-    const { editingPlaylistIndex, inpoint, outpoint, playlist } = this.state;
+    const { editingPlaylistIndex, inpoint, outpoint, end_hafaka, playlist } = this.state;
     
     if (editingPlaylistIndex === null || editingPlaylistIndex === undefined) {
       console.log('No item selected for editing');
       return;
     }
     
-    console.log('Updating playlist item at index:', editingPlaylistIndex, { inpoint, outpoint });
+    console.log('Updating playlist item at index:', editingPlaylistIndex, { inpoint, outpoint, end_hafaka });
     
-    // Update the playlist item
+    // Ensure inpoint is 0 if we have out/end_hafaka and missing in
+    let finalInpoint = (inpoint === null || inpoint === undefined) && (outpoint !== null && outpoint !== undefined || end_hafaka !== null && end_hafaka !== undefined) ? 0 : inpoint;
+    
     const updatedPlaylist = [...playlist];
     updatedPlaylist[editingPlaylistIndex] = {
       ...updatedPlaylist[editingPlaylistIndex],
-      inpoint,
-      outpoint
+      inpoint: finalInpoint,
+      outpoint,
+      end_hafaka
     };
     
-    // Update the hls_path if both in/out points are set
-    if (inpoint && outpoint) {
+    // Update HLS path if in/out are set, allowing 0
+    if ((finalInpoint !== null && finalInpoint !== undefined) && (outpoint !== null && outpoint !== undefined)) {
       const { file_path } = updatedPlaylist[editingPlaylistIndex];
-      updatedPlaylist[editingPlaylistIndex].hls_path = `https://src.bbdomain.org/${file_path}/clipFrom/${inpoint}/clipTo/${outpoint}/master.m3u8`;
+      updatedPlaylist[editingPlaylistIndex].hls_path = `https://src.bbdomain.org/${file_path}/clipFrom/${finalInpoint}/clipTo/${outpoint}/master.m3u8`;
     }
     
     this.setState({ playlist: updatedPlaylist });
@@ -532,7 +611,8 @@ class Playouts extends Component {
     
     this.setState({ 
       playlist: updatedPlaylist, 
-      editingPlaylistIndex: newEditingIndex 
+      editingPlaylistIndex: newEditingIndex,
+      hasUnsavedChanges: true
     });
     
     console.log('Updated playlist after removal:', updatedPlaylist);
@@ -545,7 +625,7 @@ class Playouts extends Component {
 
   render() {
     try {
-      const {isHls, inpoint, outpoint, find_uid, autoplay, selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate, editingPlaylistIndex, showSettings} = this.state;
+      const {isHls, inpoint, outpoint, end_hafaka, find_uid, autoplay, selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate, editingPlaylistIndex, showSettings} = this.state;
 
     let files_list = (files || []).map((data, i) => {
       if (!data || !data.source_id || !data.file_name) return null;
@@ -554,8 +634,12 @@ class Playouts extends Component {
 
     const list = (playlist || []).map((data, i) => {
       if (!data) return null;
-      const {source_id, file_name, uid, duration, inpoint, outpoint} = data;
-      const clipDuration = this.calculateClipDuration(inpoint, outpoint);
+      const {source_id, file_name, uid, duration, inpoint, outpoint, end_hafaka} = data;
+      // live values while editing
+      const liveIn = (editingPlaylistIndex === i && (this.state.inpoint || this.state.inpoint === 0)) ? this.state.inpoint : inpoint;
+      const liveEnd = (editingPlaylistIndex === i && (this.state.end_hafaka || this.state.end_hafaka === 0)) ? this.state.end_hafaka : end_hafaka;
+      const liveOut = (editingPlaylistIndex === i && (this.state.outpoint || this.state.outpoint === 0)) ? this.state.outpoint : outpoint;
+      const clipDuration = this.calculateClipDuration(liveIn, liveEnd);
       return (
         <Table.Row 
           key={i} 
@@ -563,20 +647,14 @@ class Playouts extends Component {
         >
           <Table.Cell>{source_id}</Table.Cell>
           <Table.Cell>{file_name}</Table.Cell>
-          <Table.Cell className="time-column">{inpoint ? this.formatTime(inpoint) : '00:00:00'}</Table.Cell>
-          <Table.Cell className="time-column">{outpoint ? this.formatTime(outpoint) : '00:00:00'}</Table.Cell>
+          <Table.Cell className="time-column">{(liveIn || liveIn === 0) ? this.formatTime(liveIn) : '00:00:00'}</Table.Cell>
+          <Table.Cell className="time-column">{(liveEnd || liveEnd === 0) ? this.formatTime(liveEnd) : '00:00:00'}</Table.Cell>
+          <Table.Cell className="time-column">{(liveOut || liveOut === 0) ? this.formatTime(liveOut) : '00:00:00'}</Table.Cell>
           <Table.Cell className="time-column clip-duration">{this.formatTime(clipDuration)}</Table.Cell>
           <Table.Cell>{toHms(duration)}</Table.Cell>
           <Table.Cell>{uid}</Table.Cell>
           <Table.Cell className="actions-cell">
             <div style={{ display: 'flex', gap: '4px' }}>
-              <Button 
-                size="mini" 
-                primary 
-                onClick={() => this.editPlaylistItem(i)}
-              >
-                Edit
-              </Button>
               <Button 
                 size="mini" 
                 negative 
@@ -599,6 +677,8 @@ class Playouts extends Component {
       { key: 1, text: 'Workflow', value: 'Workflow' },
       { key: 2, text: 'Backup', value: 'Backup' },
     ];
+
+    const hasUnsaved = this.state.hasUnsavedChanges;
 
     return(
       <Segment textAlign='center' >
@@ -659,10 +739,17 @@ class Playouts extends Component {
                     <div style={{ margin: '16px 0', padding: '12px', textAlign: 'center' }}>
                       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
                         <Button as='div' labelPosition='right' className="inout_btn">
-                          <Button icon color='blue' size='large' className="inout_btn" onClick={() => this.setIn(null)} />
+                          <Button icon color='blue' size='large' className="inout_btn" onClick={() => this.setIn()} />
                           <Label as='a' basic pointing='left' onClick={() => this.jumpPoint(inpoint)} style={{ cursor: 'pointer' }}>
                             { inpoint ? this.formatTime(inpoint) : "<- Set in" }
                           </Label>
+                        </Button>
+                        <Button as='div' labelPosition='left' className="inout_btn">
+                          <Label as='a' basic pointing='right' color='green'
+                                 onClick={() => this.jumpPoint(end_hafaka)} style={{ cursor: 'pointer' }}>
+                            {end_hafaka ? this.formatTime(end_hafaka) : "Set end hafaka ->"}
+                          </Label>
+                          <Button icon color='green' size='large' className="inout_btn" onClick={() => this.setEndHafaka()}/>
                         </Button>
                         <Button as='div' labelPosition='left' className="inout_btn">
                           <Label as='a' basic pointing='right' color={inpoint > outpoint ? 'red' : undefined}
@@ -671,6 +758,7 @@ class Playouts extends Component {
                           </Label>
                           <Button icon color='blue' size='large' className="inout_btn" onClick={() => this.setOut()}/>
                         </Button>
+                        <Button icon color='red' size='small' onClick={() => this.setIn(null)} title="Clear in, out and end hafaka">✕</Button>
                       </div>
                     </div>
                   )}
@@ -690,23 +778,7 @@ class Playouts extends Component {
                   )}
 
                   {/* Editing Controls */}
-                  {editingPlaylistIndex !== null && editingPlaylistIndex !== undefined && (
-                    <div className="editing-controls" style={{ margin: '16px 0', padding: '12px' }}>
-                      <div className="editing-header" style={{ textAlign: 'center', marginBottom: '8px' }}>
-                        🎬 Editing Playlist Item #{editingPlaylistIndex + 1} - Set In/Out Points
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                        <Button
-                          primary
-                          size="small"
-                          onClick={this.updateCurrentPlaylistItem}
-                          disabled={editingPlaylistIndex === null || editingPlaylistIndex === undefined}
-                        >
-                          💾 Update Item
-                        </Button>
-                      </div>
-                    </div>
-                  )}
+                  {null}
                 </div>
 
               </Segment>
@@ -842,17 +914,17 @@ class Playouts extends Component {
                   
                   {/* Bottom Section - Save playlist controls */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '30px', padding: '27px', width: '100%', justifyContent: 'center' }}>
-                    <Button disabled={playlist.length === 0} onClick={this.savePlaylist} size="small">Save playlist</Button>
+                    <Button disabled={playlist.length === 0} onClick={this.savePlaylist} size="small" color={hasUnsaved ? 'orange' : undefined}>Save playlist</Button>
                     <Input value={playlist_name} placeholder='Playlist name' size="small" style={{ minWidth: '200px' }} onChange={(e) => {this.setState({playlist_name: e.target.value})}} />
                     <div style={{ padding: '8px 12px', backgroundColor: '#ffffff', border: '1px solid #dee2e6', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: '#666' }}>
-                     Total: {toHms((playlist || []).map((r) => {
+                     Total: {toHms((playlist || []).map((r, idx) => {
                        if (!r) return 0;
-                       // Calculate clip duration from in/out points, or use full duration if no trimming
-                       if (r.inpoint && r.outpoint) {
-                         return (r.outpoint - r.inpoint) / 1000; // Convert milliseconds to seconds
+                       const liveIn = (editingPlaylistIndex === idx && (inpoint || inpoint === 0)) ? inpoint : r.inpoint;
+                       const liveEnd = (editingPlaylistIndex === idx && (end_hafaka || end_hafaka === 0)) ? end_hafaka : r.end_hafaka;
+                       if (liveIn !== null && liveIn !== undefined && liveEnd !== null && liveEnd !== undefined) {
+                         return (liveEnd - liveIn) / 1000;
                        }
                        return Number(r.duration) || 0;
-                   
                    }).reduce((su, cur) => su + cur, 0))}
                   
                    </div>
@@ -871,6 +943,7 @@ class Playouts extends Component {
                     <Table.HeaderCell>ID</Table.HeaderCell>
                     <Table.HeaderCell>File Name</Table.HeaderCell>
                     <Table.HeaderCell>In Point</Table.HeaderCell>
+                    <Table.HeaderCell>End Hafaka</Table.HeaderCell>
                     <Table.HeaderCell>Out Point</Table.HeaderCell>
                     <Table.HeaderCell>Clip Duration</Table.HeaderCell>
                     <Table.HeaderCell>File Duration</Table.HeaderCell>
