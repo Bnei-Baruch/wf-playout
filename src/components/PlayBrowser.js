@@ -66,7 +66,8 @@ class Playouts extends Component {
     isHls: true,
     editingPlaylistIndex: null,
     showSettings: false,
-    hasUnsavedChanges: false
+    hasUnsavedChanges: false,
+    forwardSkipValue: ""
   };
 
   componentDidMount() {
@@ -488,6 +489,38 @@ class Playouts extends Component {
     }
   }
 
+  // Parse time input like "90", "1:30", or "01:02:03" into seconds (number)
+  parseTimeInputToSeconds = (input) => {
+    if (input === null || input === undefined) return NaN;
+    const value = String(input).trim();
+    if (value.length === 0) return NaN;
+    if (!value.includes(':')) {
+      const s = Number(value);
+      return isNaN(s) ? NaN : s;
+    }
+    const parts = value.split(':').map(p => Number(p));
+    if (parts.some(isNaN)) return NaN;
+    // Support mm:ss or hh:mm:ss
+    let seconds = 0;
+    if (parts.length === 2) {
+      const [mm, ss] = parts;
+      seconds = (mm * 60) + ss;
+    } else if (parts.length === 3) {
+      const [hh, mm, ss] = parts;
+      seconds = (hh * 3600) + (mm * 60) + ss;
+    } else {
+      return NaN;
+    }
+    return seconds;
+  }
+
+  // Custom forward skip using the mm:ss field
+  skipForwardCustom = () => {
+    const seconds = this.parseTimeInputToSeconds(this.state.forwardSkipValue);
+    if (isNaN(seconds)) return;
+    this.skipTime(seconds);
+  }
+
   // Helper function to calculate clip duration from in point to end_hafaka
   calculateClipDuration = (inpoint, end_hafaka) => {
     if (inpoint === null || inpoint === undefined) return 0;
@@ -773,6 +806,18 @@ class Playouts extends Component {
                       <Button onClick={() => this.skipTime(60)} size="small">+1m</Button>
                       <Button onClick={() => this.skipTime(300)} size="small">+5m</Button>
                       <Button onClick={() => this.jumpToEnd()} size="small" color="blue">End</Button>
+                    </div>
+                    {/* Custom forward skip - keeps existing controls unchanged */}
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
+                      <Input
+                        size="small"
+                        style={{ width: '140px' }}
+                        placeholder="Custom + (mm:ss or ss)"
+                        value={this.state.forwardSkipValue}
+                        onChange={(e) => this.setState({ forwardSkipValue: e.target.value })}
+                        onKeyDown={(e) => { if (e.key === 'Enter') this.skipForwardCustom(); }}
+                      />
+                      <Button size="small" onClick={this.skipForwardCustom}>+ Skip</Button>
                     </div>
                   </div>
 
