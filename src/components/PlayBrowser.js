@@ -452,11 +452,20 @@ class Playouts extends Component {
   loadPlaylist = () => {
     const {selected_playlist, playlist_db} = this.state;
     const autoplay = playlist_db[selected_playlist]["autoplay"];
-    console.log(playlist_db[selected_playlist])
     const playlist = playlist_db[selected_playlist]["playlist"];
-    const playlistDate = new Date(playlist_db[selected_playlist]["date"])
-    this.setState({autoplay, playlist, playlistDate, playlist_name: selected_playlist});
-    
+    const playlistDate = new Date(playlist_db[selected_playlist]["date"]);
+    // Clear in/out/end_hafaka fields and skip time input
+    this.setState({
+      autoplay,
+      playlist,
+      playlistDate,
+      playlist_name: selected_playlist,
+      inpoint: null,
+      outpoint: null,
+      end_hafaka: null,
+      forwardSkipValue: ""
+    });
+
     // Auto-load the first item for editing if playlist has items
     if (playlist && playlist.length > 0) {
       console.log('Auto-loading first playlist item for editing');
