@@ -67,7 +67,9 @@ class Playouts extends Component {
     editingPlaylistIndex: null,
     showSettings: false,
     hasUnsavedChanges: false,
-    forwardSkipValue: ""
+    forwardSkipValue: "",
+    sadnaInOuts: [],
+    currentSadnaIndex: null
   };
 
   componentDidMount() {
@@ -213,6 +215,8 @@ class Playouts extends Component {
         inpoint: null,
         outpoint: null,
         end_hafaka: null,
+        sadnaInOuts: [],
+        currentSadnaIndex: null,
         playlist: updatedPlaylist,
         hasUnsavedChanges: true
       });
@@ -256,6 +260,82 @@ class Playouts extends Component {
     this.setState({...updates, hasUnsavedChanges: true});
   };
 
+  addSadnaPair = () => {
+    const { sadnaInOuts } = this.state;
+    const newPair = { in: null, out: null };
+    const updatedSadna = [...sadnaInOuts, newPair];
+    this.setState({ 
+      sadnaInOuts: updatedSadna, 
+      currentSadnaIndex: updatedSadna.length - 1,
+      hasUnsavedChanges: true 
+    });
+    console.log(":: Added new sadna pair at index:", updatedSadna.length - 1);
+  };
+
+  removeSadnaPair = (index) => {
+    const { sadnaInOuts, currentSadnaIndex } = this.state;
+    const updatedSadna = sadnaInOuts.filter((_, i) => i !== index);
+    let newCurrentIndex = currentSadnaIndex;
+    if (currentSadnaIndex === index) {
+      newCurrentIndex = null;
+    } else if (currentSadnaIndex > index) {
+      newCurrentIndex = currentSadnaIndex - 1;
+    }
+    this.setState({ 
+      sadnaInOuts: updatedSadna, 
+      currentSadnaIndex: newCurrentIndex,
+      hasUnsavedChanges: true 
+    });
+    console.log(":: Removed sadna pair at index:", index);
+  };
+
+  setSadnaIn = (index) => {
+    let currentTime = this.playerRef.current.currentTime;
+    let alignedTime = Math.floor(currentTime) * 1000;
+    console.log(":: Set Sadna IN for pair", index, ":", alignedTime, "(original:", currentTime * 1000, ")");
+    
+    const { sadnaInOuts } = this.state;
+    const updatedSadna = [...sadnaInOuts];
+    if (!updatedSadna[index]) {
+      updatedSadna[index] = { in: null, out: null };
+    }
+    updatedSadna[index] = { ...updatedSadna[index], in: alignedTime };
+    
+    this.setState({ 
+      sadnaInOuts: updatedSadna, 
+      currentSadnaIndex: index,
+      hasUnsavedChanges: true 
+    });
+  };
+
+  setSadnaOut = (index) => {
+    let currentTime = this.playerRef.current.currentTime;
+    let alignedTime = Math.ceil(currentTime) * 1000;
+    console.log(":: Set Sadna OUT for pair", index, ":", alignedTime, "(original:", currentTime * 1000, ")");
+    
+    const { sadnaInOuts } = this.state;
+    const updatedSadna = [...sadnaInOuts];
+    if (!updatedSadna[index]) {
+      updatedSadna[index] = { in: null, out: null };
+    }
+    updatedSadna[index] = { ...updatedSadna[index], out: alignedTime };
+    
+    this.setState({ 
+      sadnaInOuts: updatedSadna, 
+      currentSadnaIndex: index,
+      hasUnsavedChanges: true 
+    });
+  };
+
+  clearSadnaInOuts = () => {
+    this.setState({ 
+      sadnaInOuts: [], 
+      currentSadnaIndex: null,
+      hasUnsavedChanges: true 
+    });
+    console.log(":: Cleared all sadna pairs");
+  };
+
   getWorkflow = (date) => {
     getWorkflowData(`source/find?key=date&value=${date}`, (data) => {
       console.log(":: Got workflow: ",data);
@@ -280,7 +360,7 @@ class Playouts extends Component {
     }
     
     try {
-      let file_source = `https://wfsrv.bbdomain.org/wfapi${data.source.converted.filename}`
+      let file_source = `https://wf.kab.info/wfapi${data.source.converted.filename}`
 
       // External kmedia
       //let hls_source = `https://cdn.kab.info/${data.source.kmedia.file_uid}.m3u8`
@@ -289,7 +369,7 @@ class Playouts extends Component {
       // Local kmdeia
       // const path = data.source.kmedia.filename.split('/backup/files/kmedia/')[1]
       // const uid = data.source.kmedia.file_uid
-      // let hls_source = `https://hls.bbdomain.org/${uid}/${path}/master.m3u8`
+       //let hls_source = `https://hls.bbdomain.org/${uid}/${path}/master.m3u8`
 
       // Local source
       const path = data.source.converted.filename.split('/backup/files/sources/')[1]
@@ -297,7 +377,7 @@ class Playouts extends Component {
       
       // Safely load the source
       hls.loadSource(hls_source);
-      this.setState({hls_source, file_source, file_data: data, file_name: data.file_name, disabled: false, inpoint: null, outpoint: null, end_hafaka: null});
+      this.setState({hls_source, file_source, file_data: data, file_name: data.file_name, disabled: false, inpoint: null, outpoint: null, end_hafaka: null, sadnaInOuts: [], currentSadnaIndex: null});
     } catch (error) {
       console.log("Error loading file:", error);
     }
@@ -334,7 +414,7 @@ class Playouts extends Component {
   };
 
   addToPlaylist = () => {
-    const {isHls, inpoint, outpoint, end_hafaka, hls_source, file_data, playlist} = this.state;
+    const {isHls, inpoint, outpoint, end_hafaka, hls_source, file_data, playlist, sadnaInOuts} = this.state;
     const {source_id, sha1, file_name, line: {uid}, source: {converted: {filename, file_uid, duration}}} = file_data;
     const path = filename.split('/backup/files/sources/')[1]
     
@@ -350,14 +430,14 @@ class Playouts extends Component {
     } else {
       hls_path = `https://src.bbdomain.org/${path}/master.m3u8`
     }
-    const playraw = {source_id, sha1, file_name, uid, file_uid, duration, file_path: path, hls_path, isHls, inpoint: finalInpoint, outpoint, end_hafaka};
+    const playraw = {source_id, sha1, file_name, uid, file_uid, duration, file_path: path, hls_path, isHls, inpoint: finalInpoint, outpoint, end_hafaka, sadnaInOuts: [...sadnaInOuts]};
     playlist.push(playraw);
-    this.setState({playlist, hasUnsavedChanges: true});
+    this.setState({playlist, hasUnsavedChanges: true, sadnaInOuts: [], currentSadnaIndex: null});
     console.log(playlist)
   };
 
   savePlaylist = () => {
-    const {autoplay, playlist, playlist_name, playlistDate, editingPlaylistIndex, inpoint, outpoint, end_hafaka} = this.state;
+    const {autoplay, playlist, playlist_name, playlistDate, editingPlaylistIndex, inpoint, outpoint, end_hafaka, sadnaInOuts} = this.state;
     const date = playlistDate.toUTCString();
 
     // Build the final playlist synchronously with any live edits applied
@@ -374,7 +454,8 @@ class Playouts extends Component {
         ...updated[editingPlaylistIndex],
         inpoint: finalIn,
         outpoint,
-        end_hafaka
+        end_hafaka,
+        sadnaInOuts: [...sadnaInOuts]
       };
       // Update HLS path if we have valid in/out (allow inpoint=0)
       if ((finalIn !== null && finalIn !== undefined) && (outpoint !== null && outpoint !== undefined)) {
@@ -421,20 +502,88 @@ class Playouts extends Component {
 
   generatePlaylist = async () => {
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/playlist/generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
+      const { playlist_db } = this.state;
+      
+      // Prepare companion variables for all playlists
+      const companionVariables = {};
+      
+      // Get all playlist names and sort them to ensure consistent numbering
+      const playlistNames = Object.keys(playlist_db).sort();
+      
+      playlistNames.forEach((playlistName, playlistIndex) => {
+        const playlistNum = playlistIndex + 1; // 1-indexed
+        const playlistData = playlist_db[playlistName];
+        const items = playlistData.playlist || [];
+        
+        // Collect all sadna pairs from all items in this playlist
+        const allSadnaPairs = [];
+        items.forEach(item => {
+          if (item.sadnaInOuts && Array.isArray(item.sadnaInOuts)) {
+            item.sadnaInOuts.forEach(pair => {
+              if (pair.in !== null && pair.in !== undefined && pair.out !== null && pair.out !== undefined) {
+                allSadnaPairs.push({
+                  in: pair.in,
+                  out: pair.out
+                });
+              }
+            });
+          }
+        });
+        
+        // Pad to 10 pairs with zeros
+        for (let i = 1; i <= 10; i++) {
+          const pairIndex = i - 1;
+          if (pairIndex < allSadnaPairs.length) {
+            // Convert milliseconds to seconds for companion
+            companionVariables[`Ply${playlistNum}SadnaIn_${i}`] = Math.floor(allSadnaPairs[pairIndex].in / 1000);
+            companionVariables[`Ply${playlistNum}SadnaOut_${i}`] = Math.floor(allSadnaPairs[pairIndex].out / 1000);
+          } else {
+            // Pad with 0
+            companionVariables[`Ply${playlistNum}SadnaIn_${i}`] = 0;
+            companionVariables[`Ply${playlistNum}SadnaOut_${i}`] = 0;
+          }
         }
       });
-      if (!response.ok) {
-        throw new Error('Failed to generate playlist');
+      
+      console.log('Sending companion variables:', companionVariables);
+      
+      // Send to companion server using individual POST requests for each variable
+      const companionUrl = process.env.REACT_APP_COMPANION_URL || 'http://localhost:8000';
+      const variableNames = Object.keys(companionVariables);
+      let successCount = 0;
+      let failCount = 0;
+      const errors = [];
+      
+      for (const varName of variableNames) {
+        const value = companionVariables[varName];
+        try {
+          const response = await fetch(`${companionUrl}/api/custom-variable/${varName}/value?value=${value}`, {
+            method: 'POST'
+          });
+          
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+          
+          successCount++;
+          console.log(`✓ Set ${varName} = ${value}`);
+        } catch (error) {
+          failCount++;
+          errors.push(`${varName}: ${error.message}`);
+          console.error(`✗ Failed to set ${varName}:`, error);
+        }
       }
-      const result = await response.json();
-      alert('Playlist generated successfully!');
-      console.log('Playlist generated:', result);
+      
+      // Show results
+      if (failCount === 0) {
+        alert(`Successfully sent ${successCount} variables to companion!`);
+      } else {
+        alert(`Sent ${successCount} variables, ${failCount} failed.\n\nErrors:\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? '\n...' : ''}`);
+      }
+      
+      console.log(`Companion update complete: ${successCount} success, ${failCount} failed`);
     } catch (error) {
-      alert('Failed to generate playlist');
+      alert(`Failed to generate playlist: ${error.message}`);
       console.error('Error generating playlist:', error);
     }
   }
@@ -463,6 +612,8 @@ class Playouts extends Component {
       inpoint: null,
       outpoint: null,
       end_hafaka: null,
+      sadnaInOuts: [],
+      currentSadnaIndex: null,
       forwardSkipValue: ""
     });
 
@@ -615,6 +766,8 @@ class Playouts extends Component {
       inpoint: playlistItem.inpoint || null,
       outpoint: playlistItem.outpoint || null,
       end_hafaka: playlistItem.end_hafaka || null,
+      sadnaInOuts: playlistItem.sadnaInOuts ? [...playlistItem.sadnaInOuts] : [],
+      currentSadnaIndex: null,
       editingPlaylistIndex: index !== null ? index : this.state.editingPlaylistIndex,
       file_data: file_data,
       file_name: playlistItem.file_name,
@@ -622,6 +775,7 @@ class Playouts extends Component {
     });
     
     console.log('Set in/out points:', { inpoint: playlistItem.inpoint, outpoint: playlistItem.outpoint, end_hafaka: playlistItem.end_hafaka });
+    console.log('Set sadna pairs:', playlistItem.sadnaInOuts);
     console.log('Set file_data for editing:', file_data);
   }
 
@@ -704,7 +858,7 @@ class Playouts extends Component {
 
   render() {
     try {
-      const {isHls, inpoint, outpoint, end_hafaka, find_uid, autoplay, selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate, editingPlaylistIndex, showSettings} = this.state;
+      const {isHls, inpoint, outpoint, end_hafaka, find_uid, autoplay, selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate, editingPlaylistIndex, showSettings, sadnaInOuts, currentSadnaIndex} = this.state;
 
     let files_list = (files || []).map((data, i) => {
       if (!data || !data.source_id || !data.file_name) return null;
@@ -713,11 +867,12 @@ class Playouts extends Component {
 
     const list = (playlist || []).map((data, i) => {
       if (!data) return null;
-      const {source_id, file_name, uid, duration, inpoint, outpoint, end_hafaka} = data;
+      const {source_id, file_name, uid, duration, inpoint, outpoint, end_hafaka, sadnaInOuts} = data;
       // live values while editing
       const liveIn = (editingPlaylistIndex === i && (this.state.inpoint || this.state.inpoint === 0)) ? this.state.inpoint : inpoint;
       const liveEnd = (editingPlaylistIndex === i && (this.state.end_hafaka || this.state.end_hafaka === 0)) ? this.state.end_hafaka : end_hafaka;
       const liveOut = (editingPlaylistIndex === i && (this.state.outpoint || this.state.outpoint === 0)) ? this.state.outpoint : outpoint;
+      const liveSadna = (editingPlaylistIndex === i) ? this.state.sadnaInOuts : (sadnaInOuts || []);
       const clipDuration = this.calculateClipDuration(liveIn, liveEnd);
       return (
         <Table.Row 
@@ -732,6 +887,11 @@ class Playouts extends Component {
           <Table.Cell className="time-column clip-duration">{this.formatTime(clipDuration)}</Table.Cell>
           <Table.Cell>{toHms(duration)}</Table.Cell>
           <Table.Cell>{uid}</Table.Cell>
+          <Table.Cell style={{ textAlign: 'center' }}>
+            <Label size="small" color={liveSadna.length > 0 ? 'blue' : undefined}>
+              {liveSadna.length}
+            </Label>
+          </Table.Cell>
           <Table.Cell className="actions-cell">
             <div style={{ display: 'flex', gap: '4px' }}>
               <Button 
@@ -856,6 +1016,53 @@ class Playouts extends Component {
                         </Button>
                         <Button icon color='red' size='small' onClick={() => this.setIn(null)} title="Clear in, out and end hafaka">✕</Button>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Sadna In/Out Controls */}
+                  {file_data && (
+                    <div style={{ margin: '12px 0', padding: '8px', textAlign: 'center', backgroundColor: '#f9f9f9', borderRadius: '4px', border: '1px solid #e0e0e0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <strong style={{ fontSize: '14px' }}>Sadna In/Outs:</strong>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <Button size="tiny" color="green" onClick={this.addSadnaPair}>➕ Add Pair</Button>
+                          <Button size="tiny" color="red" onClick={this.clearSadnaInOuts} disabled={sadnaInOuts.length === 0}>Clear All</Button>
+                        </div>
+                      </div>
+                      
+                      {sadnaInOuts.length === 0 ? (
+                        <div style={{ padding: '8px', color: '#888', fontSize: '12px' }}>
+                          No sadna pairs yet. Click "Add Pair" to create one.
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '200px', overflowY: 'auto' }}>
+                          {sadnaInOuts.map((pair, index) => (
+                            <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px', backgroundColor: currentSadnaIndex === index ? '#e3f2fd' : 'white', borderRadius: '4px', border: '1px solid #ddd' }}>
+                              <span style={{ minWidth: '20px', fontWeight: 'bold', fontSize: '12px' }}>{index + 1}.</span>
+                              
+                              <Button as='div' labelPosition='right' size='mini'>
+                                <Button icon color='blue' size='mini' onClick={() => this.setSadnaIn(index)} />
+                                <Label as='a' basic pointing='left' onClick={() => pair.in !== null && this.jumpPoint(pair.in)} 
+                                       style={{ cursor: pair.in !== null ? 'pointer' : 'default', fontSize: '11px', minWidth: '70px' }}>
+                                  {pair.in !== null ? this.formatTime(pair.in) : "Set in"}
+                                </Label>
+                              </Button>
+                              
+                              <Button as='div' labelPosition='left' size='mini'>
+                                <Label as='a' basic pointing='right' onClick={() => pair.out !== null && this.jumpPoint(pair.out)} 
+                                       style={{ cursor: pair.out !== null ? 'pointer' : 'default', fontSize: '11px', minWidth: '70px' }}>
+                                  {pair.out !== null ? this.formatTime(pair.out) : "Set out"}
+                                </Label>
+                                <Button icon color='blue' size='mini' onClick={() => this.setSadnaOut(index)} />
+                              </Button>
+                              
+                              <Button icon size='mini' color='red' onClick={() => this.removeSadnaPair(index)} title="Remove this pair">
+                                ✕
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1044,6 +1251,7 @@ class Playouts extends Component {
                     <Table.HeaderCell>Clip Duration</Table.HeaderCell>
                     <Table.HeaderCell>File Duration</Table.HeaderCell>
                     <Table.HeaderCell>Content UID</Table.HeaderCell>
+                    <Table.HeaderCell>Sadna Pairs</Table.HeaderCell>
                     <Table.HeaderCell>Actions</Table.HeaderCell>
                   </Table.Row>
                 </Table.Header>
