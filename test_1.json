@@ -1,0 +1,18 @@
+{
+  "cache": false,
+  "durations": [10000, 15000],
+  "sequences": [{
+    "clips": [
+      {
+        "type": "source",
+        "path": "wfapi/backup/files/sources/2025/11/27/test_file.mp4",
+        "clipFrom": 0
+      },
+      {
+        "type": "source",
+        "path": "wfapi/backup/files/sources/2025/11/27/test_file.mp4",
+        "clipFrom": 30000
+      }
+    ]
+  }]
+}
