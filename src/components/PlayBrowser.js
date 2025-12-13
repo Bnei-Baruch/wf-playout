@@ -606,8 +606,8 @@ class Playouts extends Component {
           }
         });
         
-        // Pad to 10 pairs with zeros
-        for (let i = 1; i <= 10; i++) {
+        // Pad to 50 pairs with zeros
+        for (let i = 1; i <= 50; i++) {
           const pairIndex = i - 1;
           if (pairIndex < allSadnaPairs.length) {
             // Convert milliseconds to seconds for companion (relative to clip start)
