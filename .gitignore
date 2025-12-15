@@ -96,3 +96,7 @@ Desktop.ini
 *.tmp
 *.temp
 wf-playout.code-workspace
+test_1.json
+test-vod.sh
+VOD-SERVER-README.md
+vod-server.js
