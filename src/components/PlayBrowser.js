@@ -70,7 +70,9 @@ class Playouts extends Component {
     forwardSkipValue: "",
     sadnaInOuts: [],
     currentSadnaIndex: null,
-    currentInOutIndex: null
+    currentInOutIndex: null,
+    shiftAudio: 0,
+    shiftVideo: 0
   };
 
   componentDidMount() {
@@ -209,7 +211,14 @@ class Playouts extends Component {
         item.outpoint = [];
         item.end_hafaka = null;
         if (item.file_path) {
-          item.hls_path = `https://src.bbdomain.org/${item.file_path}/master.m3u8`;
+          // Preserve shift parameters if they exist
+          let shiftSegment = '';
+          if (item.shiftAudio !== 0 || item.shiftVideo !== 0) {
+            shiftSegment = '/shift';
+            if (item.shiftAudio && item.shiftAudio !== 0) shiftSegment += `/a${item.shiftAudio}`;
+            if (item.shiftVideo && item.shiftVideo !== 0) shiftSegment += `/v${item.shiftVideo}`;
+          }
+          item.hls_path = `https://src.bbdomain.org/${item.file_path}${shiftSegment}/master.m3u8`;
         }
         updatedPlaylist[editingPlaylistIndex] = item;
       }
@@ -406,7 +415,7 @@ class Playouts extends Component {
 
   selectFile = (sourceId) => {
     console.log(":: Select file by source_id: ", sourceId);
-    const {hls, files} = this.state;
+    const {hls, files, shiftAudio, shiftVideo} = this.state;
     
     if (!hls) {
       console.log("HLS not initialized");
@@ -434,11 +443,21 @@ class Playouts extends Component {
 
       // Local source
       const path = data.source.converted.filename.split('/backup/files/sources/')[1]
-      let hls_source = `https://src.bbdomain.org/${path}/master.m3u8`
+      
+      // Build shift path segment if needed: /shift/a{audio}/v{video}/
+      let shiftSegment = '';
+      if (shiftAudio !== 0 || shiftVideo !== 0) {
+        shiftSegment = '/shift';
+        if (shiftAudio !== 0) shiftSegment += `/a${shiftAudio}`;
+        if (shiftVideo !== 0) shiftSegment += `/v${shiftVideo}`;
+      }
+      
+      let hls_source = `https://src.bbdomain.org/${path}${shiftSegment}/master.m3u8`
       
       // Safely load the source
       hls.loadSource(hls_source);
-      this.setState({hls_source, file_source, file_data: data, file_name: data.file_name, disabled: false, inpoint: [], outpoint: [], end_hafaka: null, sadnaInOuts: [], currentSadnaIndex: null, currentInOutIndex: null});
+      console.log('Loaded source with shift:', hls_source);
+      this.setState({hls_source, file_source, file_data: data, file_name: data.file_name, disabled: false, inpoint: [], outpoint: [], end_hafaka: null, sadnaInOuts: [], currentSadnaIndex: null, currentInOutIndex: null, shiftAudio: 0, shiftVideo: 0});
     } catch (error) {
       console.log("Error loading file:", error);
     }
@@ -475,7 +494,7 @@ class Playouts extends Component {
   };
 
   addToPlaylist = () => {
-    const {isHls, inpoint, outpoint, end_hafaka, hls_source, file_data, playlist, sadnaInOuts} = this.state;
+    const {isHls, inpoint, outpoint, end_hafaka, hls_source, file_data, playlist, sadnaInOuts, shiftAudio, shiftVideo} = this.state;
     const {source_id, sha1, file_name, line: {uid}, source: {converted: {filename, file_uid, duration}}} = file_data;
     const path = filename.split('/backup/files/sources/')[1]
     
@@ -487,9 +506,23 @@ class Playouts extends Component {
     let hls_path;
     if (finalInpoints.length > 0 && finalInpoints[0] !== null && finalInpoints[0] !== undefined && 
         finalOutpoints.length > 0 && finalOutpoints[0] !== null && finalOutpoints[0] !== undefined) {
-      hls_path = `https://src.bbdomain.org/${path}/clipFrom/${finalInpoints[0]}/clipTo/${finalOutpoints[0]}/master.m3u8`;
+      // Build shift path segment if needed: /shift/a{audio}/v{video}/
+      let shiftSegment = '';
+      if (shiftAudio !== 0 || shiftVideo !== 0) {
+        shiftSegment = '/shift';
+        if (shiftAudio !== 0) shiftSegment += `/a${shiftAudio}`;
+        if (shiftVideo !== 0) shiftSegment += `/v${shiftVideo}`;
+      }
+      hls_path = `https://src.bbdomain.org/${path}/clipFrom/${finalInpoints[0]}/clipTo/${finalOutpoints[0]}${shiftSegment}/master.m3u8`;
     } else {
-      hls_path = `https://src.bbdomain.org/${path}/master.m3u8`;
+      // For full file, include shift if needed
+      let shiftSegment = '';
+      if (shiftAudio !== 0 || shiftVideo !== 0) {
+        shiftSegment = '/shift';
+        if (shiftAudio !== 0) shiftSegment += `/a${shiftAudio}`;
+        if (shiftVideo !== 0) shiftSegment += `/v${shiftVideo}`;
+      }
+      hls_path = `https://src.bbdomain.org/${path}${shiftSegment}/master.m3u8`;
     }
     
     const playraw = {
@@ -498,7 +531,9 @@ class Playouts extends Component {
       inpoint: finalInpoints, 
       outpoint: finalOutpoints, 
       end_hafaka, 
-      sadnaInOuts: [...sadnaInOuts]
+      sadnaInOuts: [...sadnaInOuts],
+      shiftAudio: shiftAudio || 0,  // audio shift in milliseconds
+      shiftVideo: shiftVideo || 0   // video shift in milliseconds
     };
     playlist.push(playraw);
     // Don't clear in/out pairs - keep them visible for next item
@@ -510,7 +545,7 @@ class Playouts extends Component {
   };
 
   savePlaylist = () => {
-    const {autoplay, playlist, playlist_name, playlistDate, editingPlaylistIndex, inpoint, outpoint, end_hafaka, sadnaInOuts} = this.state;
+    const {autoplay, playlist, playlist_name, playlistDate, editingPlaylistIndex, inpoint, outpoint, end_hafaka, sadnaInOuts, shiftAudio, shiftVideo} = this.state;
     const date = playlistDate.toUTCString();
 
     // Build the final playlist synchronously with any live edits applied
@@ -522,13 +557,39 @@ class Playouts extends Component {
         inpoint: [...inpoint],
         outpoint: [...outpoint],
         end_hafaka,
-        sadnaInOuts: [...sadnaInOuts]
+        sadnaInOuts: [...sadnaInOuts],
+        shiftAudio: shiftAudio || 0,
+        shiftVideo: shiftVideo || 0
       };
       // Update HLS path if we have valid first in/out pair (allow inpoint=0)
       if (inpoint.length > 0 && inpoint[0] !== null && inpoint[0] !== undefined && 
           outpoint.length > 0 && outpoint[0] !== null && outpoint[0] !== undefined) {
         const { file_path } = updated[editingPlaylistIndex];
-        updated[editingPlaylistIndex].hls_path = `https://src.bbdomain.org/${file_path}/clipFrom/${inpoint[0]}/clipTo/${outpoint[0]}/master.m3u8`;
+        
+        // Build shift path segment if needed: /shift/a{audio}/v{video}/
+        let shiftSegment = '';
+        if (shiftAudio !== 0 || shiftVideo !== 0) {
+          shiftSegment = '/shift';
+          if (shiftAudio !== 0) shiftSegment += `/a${shiftAudio}`;
+          if (shiftVideo !== 0) shiftSegment += `/v${shiftVideo}`;
+        }
+        
+        let hls_path = `https://src.bbdomain.org/${file_path}/clipFrom/${inpoint[0]}/clipTo/${outpoint[0]}${shiftSegment}/master.m3u8`;
+        updated[editingPlaylistIndex].hls_path = hls_path;
+      } else {
+        // Also update HLS path for full file if no in/out points
+        const { file_path } = updated[editingPlaylistIndex];
+        
+        // Build shift path segment if needed
+        let shiftSegment = '';
+        if (shiftAudio !== 0 || shiftVideo !== 0) {
+          shiftSegment = '/shift';
+          if (shiftAudio !== 0) shiftSegment += `/a${shiftAudio}`;
+          if (shiftVideo !== 0) shiftSegment += `/v${shiftVideo}`;
+        }
+        
+        let hls_path = `https://src.bbdomain.org/${file_path}${shiftSegment}/master.m3u8`;
+        updated[editingPlaylistIndex].hls_path = hls_path;
       }
       finalPlaylist = updated;
     }
@@ -762,7 +823,9 @@ class Playouts extends Component {
           const clip = {
             type: "source",
             path: `wfapi/backup/files/sources/${item.file_path}`,
-            clipFrom: inVal  // in milliseconds
+            clipFrom: inVal,  // in milliseconds
+            shiftAudio: item.shiftAudio || 0,  // audio shift in milliseconds
+            shiftVideo: item.shiftVideo || 0   // video shift in milliseconds
           };
           
           clips.push(clip);
@@ -938,13 +1001,25 @@ class Playouts extends Component {
   loadPlaylistItemToPlayer = (playlistItem, index = null) => {
     console.log('Loading playlist item to player:', playlistItem);
     
+    // Get shift values from playlist item
+    const itemShiftAudio = playlistItem.shiftAudio || 0;
+    const itemShiftVideo = playlistItem.shiftVideo || 0;
+    
+    // Build shift path segment if needed: /shift/a{audio}/v{video}/
+    let shiftSegment = '';
+    if (itemShiftAudio !== 0 || itemShiftVideo !== 0) {
+      shiftSegment = '/shift';
+      if (itemShiftAudio !== 0) shiftSegment += `/a${itemShiftAudio}`;
+      if (itemShiftVideo !== 0) shiftSegment += `/v${itemShiftVideo}`;
+    }
+    
     // Always load the full file for editing (not the trimmed version)
-    const fullHlsPath = `https://src.bbdomain.org/${playlistItem.file_path}/master.m3u8`;
+    let fullHlsPath = `https://src.bbdomain.org/${playlistItem.file_path}${shiftSegment}/master.m3u8`;
     
     // Set the HLS source to the full file
     if (this.state.hls) {
       this.state.hls.loadSource(fullHlsPath);
-      console.log('Loaded full file for editing:', fullHlsPath);
+      console.log('Loaded full file for editing with shift:', fullHlsPath);
     }
     
     // Create file_data object from playlist item so IN/OUT controls are visible
@@ -975,7 +1050,9 @@ class Playouts extends Component {
       editingPlaylistIndex: index !== null ? index : this.state.editingPlaylistIndex,
       file_data: file_data,
       file_name: playlistItem.file_name,
-      hasUnsavedChanges: false
+      hasUnsavedChanges: false,
+      shiftAudio: playlistItem.shiftAudio || 0,
+      shiftVideo: playlistItem.shiftVideo || 0
     });
     
     console.log('Set in/out points:', { inpoint: loadedInpoints, outpoint: loadedOutpoints, end_hafaka: playlistItem.end_hafaka });
@@ -1014,8 +1091,18 @@ class Playouts extends Component {
     
     // Update HLS path if in/out are set, allowing 0
     if ((finalInpoint !== null && finalInpoint !== undefined) && (outpoint !== null && outpoint !== undefined)) {
-      const { file_path } = updatedPlaylist[editingPlaylistIndex];
-      updatedPlaylist[editingPlaylistIndex].hls_path = `https://src.bbdomain.org/${file_path}/clipFrom/${finalInpoint}/clipTo/${outpoint}/master.m3u8`;
+      const { file_path, shiftAudio, shiftVideo } = updatedPlaylist[editingPlaylistIndex];
+      
+      // Build shift path segment if needed: /shift/a{audio}/v{video}/
+      let shiftSegment = '';
+      if (shiftAudio !== 0 || shiftVideo !== 0) {
+        shiftSegment = '/shift';
+        if (shiftAudio && shiftAudio !== 0) shiftSegment += `/a${shiftAudio}`;
+        if (shiftVideo && shiftVideo !== 0) shiftSegment += `/v${shiftVideo}`;
+      }
+      
+      let hls_path = `https://src.bbdomain.org/${file_path}/clipFrom/${finalInpoint}/clipTo/${outpoint}${shiftSegment}/master.m3u8`;
+      updatedPlaylist[editingPlaylistIndex].hls_path = hls_path;
     }
     
     this.setState({ playlist: updatedPlaylist });
@@ -1062,7 +1149,7 @@ class Playouts extends Component {
 
   render() {
     try {
-      const {isHls, inpoint, outpoint, end_hafaka, find_uid, autoplay, selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate, editingPlaylistIndex, showSettings, sadnaInOuts, currentSadnaIndex, currentInOutIndex} = this.state;
+      const {isHls, inpoint, outpoint, end_hafaka, find_uid, autoplay, selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate, editingPlaylistIndex, showSettings, sadnaInOuts, currentSadnaIndex, currentInOutIndex, shiftAudio, shiftVideo} = this.state;
 
     let files_list = (files || []).map((data, i) => {
       if (!data || !data.source_id || !data.file_name) return null;
@@ -1071,7 +1158,7 @@ class Playouts extends Component {
 
     const list = (playlist || []).map((data, i) => {
       if (!data) return null;
-      const {source_id, file_name, uid, duration, inpoint, outpoint, end_hafaka, sadnaInOuts} = data;
+      const {source_id, file_name, uid, duration, inpoint, outpoint, end_hafaka, sadnaInOuts, shiftAudio, shiftVideo} = data;
       
       // live values while editing (now arrays)
       const liveInArray = (editingPlaylistIndex === i) ? this.state.inpoint : (Array.isArray(inpoint) ? inpoint : []);
@@ -1108,6 +1195,8 @@ class Playouts extends Component {
               {liveSadna.length}
             </Label>
           </Table.Cell>
+          <Table.Cell style={{ textAlign: 'center', fontSize: '11px' }}>{shiftAudio || 0}</Table.Cell>
+          <Table.Cell style={{ textAlign: 'center', fontSize: '11px' }}>{shiftVideo || 0}</Table.Cell>
           <Table.Cell className="actions-cell">
             <div style={{ display: 'flex', gap: '4px' }}>
               <Button 
@@ -1313,6 +1402,62 @@ class Playouts extends Component {
                     </div>
                   )}
 
+                  {/* Shift Audio/Video Controls */}
+                  {file_data && (
+                    <div style={{ margin: '12px 0', padding: '8px', textAlign: 'center', backgroundColor: '#f0f8ff', borderRadius: '4px', border: '1px solid #b0d4f1' }}>
+                      <strong style={{ fontSize: '14px', display: 'block', marginBottom: '8px' }}>Audio/Video Shift (ms):</strong>
+                      <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Audio:</label>
+                          <Input
+                            type="number"
+                            value={shiftAudio}
+                            onChange={(e) => this.setState({ shiftAudio: parseInt(e.target.value) || 0 })}
+                            size="mini"
+                            style={{ width: '80px' }}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Video:</label>
+                          <Input
+                            type="number"
+                            value={shiftVideo}
+                            onChange={(e) => this.setState({ shiftVideo: parseInt(e.target.value) || 0 })}
+                            size="mini"
+                            style={{ width: '80px' }}
+                          />
+                        </div>
+                        <Button 
+                          size="mini" 
+                          color="blue" 
+                          onClick={() => {
+                            const {hls, file_data, shiftAudio, shiftVideo} = this.state;
+                            if (file_data && hls) {
+                              const path = file_data.source.converted.filename.split('/backup/files/sources/')[1];
+                              
+                              // Build shift path segment: /shift/a{audio}/v{video}/
+                              let shiftSegment = '';
+                              if (shiftAudio !== 0 || shiftVideo !== 0) {
+                                shiftSegment = '/shift';
+                                if (shiftAudio !== 0) shiftSegment += `/a${shiftAudio}`;
+                                if (shiftVideo !== 0) shiftSegment += `/v${shiftVideo}`;
+                              }
+                              
+                              let hls_source = `https://src.bbdomain.org/${path}${shiftSegment}/master.m3u8`;
+                              
+                              hls.loadSource(hls_source);
+                              this.setState({hls_source});
+                              console.log('Reloaded with shift:', hls_source);
+                            }
+                          }}
+                          disabled={!file_data}
+                        >
+                          🔄 Apply Shift
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Add to Playlist Button - Always visible when file is loaded, but disabled when editing */}
                   {file_data && (
                     <div style={{ margin: '8px 0', padding: '4px', textAlign: 'center' }}>
@@ -1500,6 +1645,8 @@ class Playouts extends Component {
                     <Table.HeaderCell>File Duration</Table.HeaderCell>
                     <Table.HeaderCell>Content UID</Table.HeaderCell>
                     <Table.HeaderCell>Sadna Pairs</Table.HeaderCell>
+                    <Table.HeaderCell>Shift Audio (ms)</Table.HeaderCell>
+                    <Table.HeaderCell>Shift Video (ms)</Table.HeaderCell>
                     <Table.HeaderCell>Actions</Table.HeaderCell>
                   </Table.Row>
                 </Table.Header>
