@@ -60,8 +60,8 @@ class Playouts extends Component {
     playlist_db: {},
     playlist_options: [],
     selected_playlist: "",
-    inpoint: null,
-    outpoint: null,
+    inpoint: [],
+    outpoint: [],
     end_hafaka: null,
     isHls: true,
     editingPlaylistIndex: null,
@@ -69,7 +69,10 @@ class Playouts extends Component {
     hasUnsavedChanges: false,
     forwardSkipValue: "",
     sadnaInOuts: [],
-    currentSadnaIndex: null
+    currentSadnaIndex: null,
+    currentInOutIndex: null,
+    shiftAudio: 0,
+    shiftVideo: 0
   };
 
   componentDidMount() {
@@ -196,68 +199,135 @@ class Playouts extends Component {
     }
   };
 
-  setIn = (value) => {
-    if (value === null) {
+  setIn = (index) => {
+    if (index === null) {
+      // Clear all in/out points
       const { editingPlaylistIndex, playlist } = this.state;
       let updatedPlaylist = playlist;
       if (editingPlaylistIndex !== null && editingPlaylistIndex !== undefined && playlist && playlist[editingPlaylistIndex]) {
         updatedPlaylist = [...playlist];
         const item = { ...updatedPlaylist[editingPlaylistIndex] };
-        item.inpoint = null;
-        item.outpoint = null;
+        item.inpoint = [];
+        item.outpoint = [];
         item.end_hafaka = null;
         if (item.file_path) {
-          item.hls_path = `https://src.bbdomain.org/${item.file_path}/master.m3u8`;
+          // Preserve shift parameters if they exist
+          let shiftSegment = '';
+          if (item.shiftAudio !== 0 || item.shiftVideo !== 0) {
+            shiftSegment = '/shift';
+            if (item.shiftAudio && item.shiftAudio !== 0) shiftSegment += `/a${item.shiftAudio}`;
+            if (item.shiftVideo && item.shiftVideo !== 0) shiftSegment += `/v${item.shiftVideo}`;
+          }
+          item.hls_path = `https://src.bbdomain.org/${item.file_path}${shiftSegment}/master.m3u8`;
         }
         updatedPlaylist[editingPlaylistIndex] = item;
       }
       this.setState({
-        inpoint: null,
-        outpoint: null,
+        inpoint: [],
+        outpoint: [],
         end_hafaka: null,
         sadnaInOuts: [],
         currentSadnaIndex: null,
+        currentInOutIndex: null,
         playlist: updatedPlaylist,
         hasUnsavedChanges: true
       });
       return;
     }
+    
     let currentTime = this.playerRef.current.currentTime;
     let alignedTime = Math.floor(currentTime) * 1000;
-    console.log(":: Set IN: ", alignedTime, "(original:", currentTime * 1000, ")");
-    this.setState({inpoint: alignedTime, hasUnsavedChanges: true});
+    console.log(":: Set IN for pair", index, ":", alignedTime, "(original:", currentTime * 1000, ")");
+    
+    const { inpoint } = this.state;
+    const updatedInpoints = [...inpoint];
+    updatedInpoints[index] = alignedTime;
+    
+    this.setState({ 
+      inpoint: updatedInpoints, 
+      currentInOutIndex: index,
+      hasUnsavedChanges: true 
+    });
   };
 
-  setOut = () => {
+  setOut = (index) => {
     let currentTime = this.playerRef.current.currentTime;
     let alignedTime = Math.ceil(currentTime) * 1000;
-    console.log(":: Set OUT: ", alignedTime, "(original:", currentTime * 1000, ")");
-    const updates = { outpoint: alignedTime };
-    if (this.state.inpoint === null || this.state.inpoint === undefined) {
+    console.log(":: Set OUT for pair", index, ":", alignedTime, "(original:", currentTime * 1000, ")");
+    
+    const { outpoint, inpoint } = this.state;
+    const updatedOutpoints = [...outpoint];
+    updatedOutpoints[index] = alignedTime;
+    
+    // Auto-set IN point to 0 if not set for this pair
+    const updatedInpoints = [...inpoint];
+    if (updatedInpoints[index] === null || updatedInpoints[index] === undefined) {
       const { editingPlaylistIndex, playlist } = this.state;
-      const savedIn = (editingPlaylistIndex !== null && editingPlaylistIndex !== undefined && playlist[editingPlaylistIndex]) ? playlist[editingPlaylistIndex].inpoint : null;
+      const savedIn = (editingPlaylistIndex !== null && editingPlaylistIndex !== undefined && 
+                      playlist[editingPlaylistIndex] && 
+                      Array.isArray(playlist[editingPlaylistIndex].inpoint)) 
+                      ? playlist[editingPlaylistIndex].inpoint[index] : null;
       if (savedIn === null || savedIn === undefined) {
-        updates.inpoint = 0;
-        console.log(":: Auto-set IN point to 0 (no saved inpoint)");
+        updatedInpoints[index] = 0;
+        console.log(":: Auto-set IN point to 0 for pair", index);
       }
     }
-    this.setState({...updates, hasUnsavedChanges: true});
+    
+    this.setState({ 
+      outpoint: updatedOutpoints, 
+      inpoint: updatedInpoints,
+      currentInOutIndex: index,
+      hasUnsavedChanges: true 
+    });
   };
 
   setEndHafaka = () => {
     let currentTime = this.playerRef.current.currentTime;
     let alignedTime = Math.ceil(currentTime) * 1000;
     console.log(":: Set END HAFAKA: ", alignedTime, "(original:", currentTime * 1000, ")");
-    const updates = { end_hafaka: alignedTime };
-    if (this.state.inpoint === null || this.state.inpoint === undefined) {
-      const { editingPlaylistIndex, playlist } = this.state;
-      const savedIn = (editingPlaylistIndex !== null && editingPlaylistIndex !== undefined && playlist[editingPlaylistIndex]) ? playlist[editingPlaylistIndex].inpoint : null;
-      if (savedIn === null || savedIn === undefined) {
-        updates.inpoint = 0;
-        console.log(":: Auto-set IN point to 0 (no saved inpoint)");
-      }
+    this.setState({end_hafaka: alignedTime, hasUnsavedChanges: true});
+  };
+
+  addInOutPair = () => {
+    const { inpoint, outpoint } = this.state;
+    const updatedIn = [...inpoint, null];
+    const updatedOut = [...outpoint, null];
+    this.setState({ 
+      inpoint: updatedIn, 
+      outpoint: updatedOut,
+      currentInOutIndex: updatedIn.length - 1,
+      hasUnsavedChanges: true 
+    });
+    console.log(":: Added new in/out pair at index:", updatedIn.length - 1);
+  };
+
+  removeInOutPair = (index) => {
+    const { inpoint, outpoint, currentInOutIndex } = this.state;
+    const updatedIn = inpoint.filter((_, i) => i !== index);
+    const updatedOut = outpoint.filter((_, i) => i !== index);
+    let newCurrentIndex = currentInOutIndex;
+    if (currentInOutIndex === index) {
+      newCurrentIndex = null;
+    } else if (currentInOutIndex > index) {
+      newCurrentIndex = currentInOutIndex - 1;
     }
-    this.setState({...updates, hasUnsavedChanges: true});
+    this.setState({ 
+      inpoint: updatedIn, 
+      outpoint: updatedOut,
+      currentInOutIndex: newCurrentIndex,
+      hasUnsavedChanges: true 
+    });
+    console.log(":: Removed in/out pair at index:", index);
+  };
+
+  clearInOutPairs = () => {
+    this.setState({ 
+      inpoint: [], 
+      outpoint: [],
+      currentInOutIndex: null,
+      hasUnsavedChanges: true 
+    });
+    console.log(":: Cleared all in/out pairs");
   };
 
   addSadnaPair = () => {
@@ -345,7 +415,7 @@ class Playouts extends Component {
 
   selectFile = (sourceId) => {
     console.log(":: Select file by source_id: ", sourceId);
-    const {hls, files} = this.state;
+    const {hls, files, shiftAudio, shiftVideo} = this.state;
     
     if (!hls) {
       console.log("HLS not initialized");
@@ -373,11 +443,21 @@ class Playouts extends Component {
 
       // Local source
       const path = data.source.converted.filename.split('/backup/files/sources/')[1]
-      let hls_source = `https://src.bbdomain.org/${path}/master.m3u8`
+      
+      // Build shift path segment if needed: /shift/a{audio}/v{video}/
+      let shiftSegment = '';
+      if (shiftAudio !== 0 || shiftVideo !== 0) {
+        shiftSegment = '/shift';
+        if (shiftAudio !== 0) shiftSegment += `/a${shiftAudio}`;
+        if (shiftVideo !== 0) shiftSegment += `/v${shiftVideo}`;
+      }
+      
+      let hls_source = `https://src.bbdomain.org/${path}${shiftSegment}/master.m3u8`
       
       // Safely load the source
       hls.loadSource(hls_source);
-      this.setState({hls_source, file_source, file_data: data, file_name: data.file_name, disabled: false, inpoint: null, outpoint: null, end_hafaka: null, sadnaInOuts: [], currentSadnaIndex: null});
+      console.log('Loaded source with shift:', hls_source);
+      this.setState({hls_source, file_source, file_data: data, file_name: data.file_name, disabled: false, inpoint: [], outpoint: [], end_hafaka: null, sadnaInOuts: [], currentSadnaIndex: null, currentInOutIndex: null, shiftAudio: 0, shiftVideo: 0});
     } catch (error) {
       console.log("Error loading file:", error);
     }
@@ -414,53 +494,102 @@ class Playouts extends Component {
   };
 
   addToPlaylist = () => {
-    const {isHls, inpoint, outpoint, end_hafaka, hls_source, file_data, playlist, sadnaInOuts} = this.state;
+    const {isHls, inpoint, outpoint, end_hafaka, hls_source, file_data, playlist, sadnaInOuts, shiftAudio, shiftVideo} = this.state;
     const {source_id, sha1, file_name, line: {uid}, source: {converted: {filename, file_uid, duration}}} = file_data;
     const path = filename.split('/backup/files/sources/')[1]
     
-    let finalInpoint = inpoint;
-    if ((finalInpoint === null || finalInpoint === undefined) && (outpoint !== null && outpoint !== undefined || end_hafaka !== null && end_hafaka !== undefined)) {
-      finalInpoint = 0;
-      console.log(":: Auto-set IN point to 0 for playlist item");
+    // Use arrays for in/out points
+    const finalInpoints = [...inpoint];
+    const finalOutpoints = [...outpoint];
+    
+    // Generate HLS path (use first pair if available, otherwise full file)
+    let hls_path;
+    if (finalInpoints.length > 0 && finalInpoints[0] !== null && finalInpoints[0] !== undefined && 
+        finalOutpoints.length > 0 && finalOutpoints[0] !== null && finalOutpoints[0] !== undefined) {
+      // Build shift path segment if needed: /shift/a{audio}/v{video}/
+      let shiftSegment = '';
+      if (shiftAudio !== 0 || shiftVideo !== 0) {
+        shiftSegment = '/shift';
+        if (shiftAudio !== 0) shiftSegment += `/a${shiftAudio}`;
+        if (shiftVideo !== 0) shiftSegment += `/v${shiftVideo}`;
+      }
+      hls_path = `https://src.bbdomain.org/${path}/clipFrom/${finalInpoints[0]}/clipTo/${finalOutpoints[0]}${shiftSegment}/master.m3u8`;
+    } else {
+      // For full file, include shift if needed
+      let shiftSegment = '';
+      if (shiftAudio !== 0 || shiftVideo !== 0) {
+        shiftSegment = '/shift';
+        if (shiftAudio !== 0) shiftSegment += `/a${shiftAudio}`;
+        if (shiftVideo !== 0) shiftSegment += `/v${shiftVideo}`;
+      }
+      hls_path = `https://src.bbdomain.org/${path}${shiftSegment}/master.m3u8`;
     }
     
-    let hls_path
-    if ((finalInpoint !== null && finalInpoint !== undefined) && (outpoint !== null && outpoint !== undefined)) {
-      hls_path = `https://src.bbdomain.org/${path}/clipFrom/${finalInpoint}/clipTo/${outpoint}/master.m3u8`
-    } else {
-      hls_path = `https://src.bbdomain.org/${path}/master.m3u8`
-    }
-    const playraw = {source_id, sha1, file_name, uid, file_uid, duration, file_path: path, hls_path, isHls, inpoint: finalInpoint, outpoint, end_hafaka, sadnaInOuts: [...sadnaInOuts]};
+    const playraw = {
+      source_id, sha1, file_name, uid, file_uid, duration, 
+      file_path: path, hls_path, isHls, 
+      inpoint: finalInpoints, 
+      outpoint: finalOutpoints, 
+      end_hafaka, 
+      sadnaInOuts: [...sadnaInOuts],
+      shiftAudio: shiftAudio || 0,  // audio shift in milliseconds
+      shiftVideo: shiftVideo || 0   // video shift in milliseconds
+    };
     playlist.push(playraw);
-    this.setState({playlist, hasUnsavedChanges: true, sadnaInOuts: [], currentSadnaIndex: null});
+    // Don't clear in/out pairs - keep them visible for next item
+    this.setState({
+      playlist, 
+      hasUnsavedChanges: true
+    });
     console.log(playlist)
   };
 
   savePlaylist = () => {
-    const {autoplay, playlist, playlist_name, playlistDate, editingPlaylistIndex, inpoint, outpoint, end_hafaka, sadnaInOuts} = this.state;
+    const {autoplay, playlist, playlist_name, playlistDate, editingPlaylistIndex, inpoint, outpoint, end_hafaka, sadnaInOuts, shiftAudio, shiftVideo} = this.state;
     const date = playlistDate.toUTCString();
 
     // Build the final playlist synchronously with any live edits applied
     let finalPlaylist = playlist;
     if (editingPlaylistIndex !== null && editingPlaylistIndex !== undefined && playlist[editingPlaylistIndex]) {
       const updated = [...playlist];
-      // Prefer saved inpoint if present, else use live inpoint, else 0 when needed
-      let finalIn = inpoint;
-      if ((finalIn === null || finalIn === undefined) && (outpoint !== null && outpoint !== undefined || end_hafaka !== null && end_hafaka !== undefined)) {
-        const savedIn = updated[editingPlaylistIndex].inpoint;
-        finalIn = (savedIn !== null && savedIn !== undefined) ? savedIn : 0;
-      }
       updated[editingPlaylistIndex] = {
         ...updated[editingPlaylistIndex],
-        inpoint: finalIn,
-        outpoint,
+        inpoint: [...inpoint],
+        outpoint: [...outpoint],
         end_hafaka,
-        sadnaInOuts: [...sadnaInOuts]
+        sadnaInOuts: [...sadnaInOuts],
+        shiftAudio: shiftAudio || 0,
+        shiftVideo: shiftVideo || 0
       };
-      // Update HLS path if we have valid in/out (allow inpoint=0)
-      if ((finalIn !== null && finalIn !== undefined) && (outpoint !== null && outpoint !== undefined)) {
+      // Update HLS path if we have valid first in/out pair (allow inpoint=0)
+      if (inpoint.length > 0 && inpoint[0] !== null && inpoint[0] !== undefined && 
+          outpoint.length > 0 && outpoint[0] !== null && outpoint[0] !== undefined) {
         const { file_path } = updated[editingPlaylistIndex];
-        updated[editingPlaylistIndex].hls_path = `https://src.bbdomain.org/${file_path}/clipFrom/${finalIn}/clipTo/${outpoint}/master.m3u8`;
+        
+        // Build shift path segment if needed: /shift/a{audio}/v{video}/
+        let shiftSegment = '';
+        if (shiftAudio !== 0 || shiftVideo !== 0) {
+          shiftSegment = '/shift';
+          if (shiftAudio !== 0) shiftSegment += `/a${shiftAudio}`;
+          if (shiftVideo !== 0) shiftSegment += `/v${shiftVideo}`;
+        }
+        
+        let hls_path = `https://src.bbdomain.org/${file_path}/clipFrom/${inpoint[0]}/clipTo/${outpoint[0]}${shiftSegment}/master.m3u8`;
+        updated[editingPlaylistIndex].hls_path = hls_path;
+      } else {
+        // Also update HLS path for full file if no in/out points
+        const { file_path } = updated[editingPlaylistIndex];
+        
+        // Build shift path segment if needed
+        let shiftSegment = '';
+        if (shiftAudio !== 0 || shiftVideo !== 0) {
+          shiftSegment = '/shift';
+          if (shiftAudio !== 0) shiftSegment += `/a${shiftAudio}`;
+          if (shiftVideo !== 0) shiftSegment += `/v${shiftVideo}`;
+        }
+        
+        let hls_path = `https://src.bbdomain.org/${file_path}${shiftSegment}/master.m3u8`;
+        updated[editingPlaylistIndex].hls_path = hls_path;
       }
       finalPlaylist = updated;
     }
@@ -472,11 +601,12 @@ class Playouts extends Component {
       return;
     }
 
-    // Calculate total duration using in -> end_hafaka
+    // Calculate total duration using first inpoint -> end_hafaka
     const total = toHms((finalPlaylist || []).map((r) => {
       if (!r) return 0;
-      if (r.inpoint !== null && r.inpoint !== undefined && r.end_hafaka !== null && r.end_hafaka !== undefined) {
-        return (r.end_hafaka - r.inpoint) / 1000;
+      const firstIn = (Array.isArray(r.inpoint) && r.inpoint.length > 0) ? r.inpoint[0] : null;
+      if (firstIn !== null && firstIn !== undefined && r.end_hafaka !== null && r.end_hafaka !== undefined) {
+        return (r.end_hafaka - firstIn) / 1000;
       }
       return Number(r.duration) || 0;
     }).reduce((su, cur) => su + cur, 0));
@@ -516,25 +646,32 @@ class Playouts extends Component {
         const items = playlistData.playlist || [];
         
         // Collect all sadna pairs from all items in this playlist
+        // Sadna values are stored RELATIVE to the clip's in point
         const allSadnaPairs = [];
         items.forEach(item => {
           if (item.sadnaInOuts && Array.isArray(item.sadnaInOuts)) {
+            // Get the first in point of this item (clip start)
+            const clipInPoint = (Array.isArray(item.inpoint) && item.inpoint.length > 0 && item.inpoint[0] !== null) 
+              ? item.inpoint[0] 
+              : 0;
+            
             item.sadnaInOuts.forEach(pair => {
               if (pair.in !== null && pair.in !== undefined && pair.out !== null && pair.out !== undefined) {
+                // Calculate relative to clip in point
                 allSadnaPairs.push({
-                  in: pair.in,
-                  out: pair.out
+                  in: pair.in - clipInPoint,
+                  out: pair.out - clipInPoint
                 });
               }
             });
           }
         });
         
-        // Pad to 10 pairs with zeros
-        for (let i = 1; i <= 10; i++) {
+        // Pad to 50 pairs with zeros
+        for (let i = 1; i <= 50; i++) {
           const pairIndex = i - 1;
           if (pairIndex < allSadnaPairs.length) {
-            // Convert milliseconds to seconds for companion
+            // Convert milliseconds to seconds for companion (relative to clip start)
             companionVariables[`Ply${playlistNum}SadnaIn_${i}`] = Math.floor(allSadnaPairs[pairIndex].in / 1000);
             companionVariables[`Ply${playlistNum}SadnaOut_${i}`] = Math.floor(allSadnaPairs[pairIndex].out / 1000);
           } else {
@@ -550,9 +687,9 @@ class Playouts extends Component {
       // Send to companion server using individual POST requests for each variable
       const companionUrl = process.env.REACT_APP_COMPANION_URL || 'http://localhost:8000';
       const variableNames = Object.keys(companionVariables);
-      let successCount = 0;
-      let failCount = 0;
-      const errors = [];
+      let companionSuccessCount = 0;
+      let companionFailCount = 0;
+      const companionErrors = [];
       
       for (const varName of variableNames) {
         const value = companionVariables[varName];
@@ -565,28 +702,153 @@ class Playouts extends Component {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
           }
           
-          successCount++;
-          console.log(`✓ Set ${varName} = ${value}`);
+          companionSuccessCount++;
+          console.log(`✓ Companion: Set ${varName} = ${value}`);
         } catch (error) {
-          failCount++;
-          errors.push(`${varName}: ${error.message}`);
-          console.error(`✗ Failed to set ${varName}:`, error);
+          companionFailCount++;
+          companionErrors.push(`${varName}: ${error.message}`);
+          console.error(`✗ Companion: Failed to set ${varName}:`, error);
         }
       }
       
-      // Show results
-      if (failCount === 0) {
-        alert(`Successfully sent ${successCount} variables to companion!`);
-      } else {
-        alert(`Sent ${successCount} variables, ${failCount} failed.\n\nErrors:\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? '\n...' : ''}`);
+      console.log(`Companion update complete: ${companionSuccessCount} success, ${companionFailCount} failed`);
+      
+      // Generate and send VOD JSON files
+      console.log('Generating VOD JSON files...');
+      const vodUrl = process.env.REACT_APP_VOD_URL || 'http://10.66.1.76';
+      let vodSuccessCount = 0;
+      let vodFailCount = 0;
+      const vodErrors = [];
+      
+      // First, clear all existing VOD maps
+      try {
+        console.log('Clearing existing VOD maps...');
+        const clearResponse = await fetch(`${vodUrl}/api/vod-maps`, {
+          method: 'DELETE'
+        });
+        
+        if (clearResponse.ok) {
+          const clearResult = await clearResponse.json();
+          console.log(`✓ Cleared ${clearResult.deletedCount || 0} existing VOD maps`);
+        } else {
+          console.warn('Warning: Could not clear existing VOD maps');
+        }
+      } catch (clearError) {
+        console.warn('Warning: Could not clear existing VOD maps:', clearError.message);
+        // Continue anyway - we'll overwrite existing files
       }
       
-      console.log(`Companion update complete: ${successCount} success, ${failCount} failed`);
+      for (const playlistName of playlistNames) {
+        const playlistData = playlist_db[playlistName];
+        
+        try {
+          // Generate VOD JSON structure
+          const vodJson = this.generateVODJson(playlistName, playlistData);
+          
+          console.log(`Sending VOD JSON for ${playlistName}:`, vodJson);
+          
+          // Send to VOD machine
+          const response = await fetch(`${vodUrl}/api/vod-maps/${playlistName}.json`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(vodJson)
+      });
+          
+      if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+          
+      const result = await response.json();
+          vodSuccessCount++;
+          console.log(`✓ VOD: Saved ${playlistName}.json`, result);
     } catch (error) {
-      alert(`Failed to generate playlist: ${error.message}`);
-      console.error('Error generating playlist:', error);
+          vodFailCount++;
+          vodErrors.push(`${playlistName}: ${error.message}`);
+          console.error(`✗ VOD: Failed to save ${playlistName}.json:`, error);
+        }
+      }
+      
+      console.log(`VOD update complete: ${vodSuccessCount} success, ${vodFailCount} failed`);
+      
+      // Show combined results
+      const totalSuccess = companionSuccessCount + vodSuccessCount;
+      const totalFail = companionFailCount + vodFailCount;
+      
+      if (totalFail === 0) {
+        alert(`✓ Successfully generated playlists!\n\nCompanion: ${companionSuccessCount} variables\nVOD: ${vodSuccessCount} JSON files`);
+      } else {
+        let errorMsg = `Generated playlists with some errors:\n\n`;
+        errorMsg += `✓ Companion: ${companionSuccessCount} success, ${companionFailCount} failed\n`;
+        errorMsg += `✓ VOD: ${vodSuccessCount} success, ${vodFailCount} failed\n\n`;
+        
+        if (companionErrors.length > 0) {
+          errorMsg += `Companion errors:\n${companionErrors.slice(0, 3).join('\n')}\n`;
+          if (companionErrors.length > 3) errorMsg += `... and ${companionErrors.length - 3} more\n`;
+        }
+        
+        if (vodErrors.length > 0) {
+          errorMsg += `\nVOD errors:\n${vodErrors.slice(0, 3).join('\n')}`;
+          if (vodErrors.length > 3) errorMsg += `\n... and ${vodErrors.length - 3} more`;
+        }
+        
+        alert(errorMsg);
+      }
+    } catch (error) {
+      alert(`Failed to generate playlists: ${error.message}`);
+      console.error('Error generating playlists:', error);
     }
   }
+
+  generateVODJson = (playlistName, playlistData) => {
+    // Generate VOD JSON structure from playlist data
+    const items = playlistData.playlist || [];
+    const clips = [];
+    const durations = [];
+    
+    // Iterate through each playlist item
+    items.forEach(item => {
+      const inpoints = Array.isArray(item.inpoint) ? item.inpoint : [];
+      const outpoints = Array.isArray(item.outpoint) ? item.outpoint : [];
+      
+      // Each in/out pair becomes a clip
+      for (let i = 0; i < inpoints.length; i++) {
+        const inVal = inpoints[i];
+        const outVal = outpoints[i];
+        
+        if (inVal !== null && inVal !== undefined && outVal !== null && outVal !== undefined) {
+          // Create clip with wfapi prefix
+          const clip = {
+            type: "source",
+            path: `wfapi/backup/files/sources/${item.file_path}`,
+            clipFrom: inVal,  // in milliseconds
+            shiftAudio: item.shiftAudio || 0,  // audio shift in milliseconds
+            shiftVideo: item.shiftVideo || 0   // video shift in milliseconds
+          };
+          
+          clips.push(clip);
+          
+          // Calculate duration (out - in) in milliseconds
+          const duration = outVal - inVal;
+          durations.push(duration);
+        }
+      }
+    });
+    
+    // Build final VOD JSON structure
+    const vodJson = {
+      cache: false,
+      durations: durations,
+      sequences: [{
+        clips: clips
+      }]
+    };
+    
+    return vodJson;
+  };
+
   setPlaylistDate = (data) => {
     console.log(":: setPlaylistDate: ", data);
     let date = data.toLocaleDateString('sv');
@@ -609,11 +871,12 @@ class Playouts extends Component {
       playlist,
       playlistDate,
       playlist_name: selected_playlist,
-      inpoint: null,
-      outpoint: null,
+      inpoint: [],
+      outpoint: [],
       end_hafaka: null,
       sadnaInOuts: [],
       currentSadnaIndex: null,
+      currentInOutIndex: null,
       forwardSkipValue: ""
     });
 
@@ -738,13 +1001,25 @@ class Playouts extends Component {
   loadPlaylistItemToPlayer = (playlistItem, index = null) => {
     console.log('Loading playlist item to player:', playlistItem);
     
+    // Get shift values from playlist item
+    const itemShiftAudio = playlistItem.shiftAudio || 0;
+    const itemShiftVideo = playlistItem.shiftVideo || 0;
+    
+    // Build shift path segment if needed: /shift/a{audio}/v{video}/
+    let shiftSegment = '';
+    if (itemShiftAudio !== 0 || itemShiftVideo !== 0) {
+      shiftSegment = '/shift';
+      if (itemShiftAudio !== 0) shiftSegment += `/a${itemShiftAudio}`;
+      if (itemShiftVideo !== 0) shiftSegment += `/v${itemShiftVideo}`;
+    }
+    
     // Always load the full file for editing (not the trimmed version)
-    const fullHlsPath = `https://src.bbdomain.org/${playlistItem.file_path}/master.m3u8`;
+    let fullHlsPath = `https://src.bbdomain.org/${playlistItem.file_path}${shiftSegment}/master.m3u8`;
     
     // Set the HLS source to the full file
     if (this.state.hls) {
       this.state.hls.loadSource(fullHlsPath);
-      console.log('Loaded full file for editing:', fullHlsPath);
+      console.log('Loaded full file for editing with shift:', fullHlsPath);
     }
     
     // Create file_data object from playlist item so IN/OUT controls are visible
@@ -761,20 +1036,26 @@ class Playouts extends Component {
       }
     };
     
-    // Set the in/out points from the playlist item and file_data
+    // Set the in/out points from the playlist item and file_data (ensure arrays)
+    const loadedInpoints = Array.isArray(playlistItem.inpoint) ? [...playlistItem.inpoint] : (playlistItem.inpoint !== null && playlistItem.inpoint !== undefined ? [playlistItem.inpoint] : []);
+    const loadedOutpoints = Array.isArray(playlistItem.outpoint) ? [...playlistItem.outpoint] : (playlistItem.outpoint !== null && playlistItem.outpoint !== undefined ? [playlistItem.outpoint] : []);
+    
     this.setState({
-      inpoint: playlistItem.inpoint || null,
-      outpoint: playlistItem.outpoint || null,
+      inpoint: loadedInpoints,
+      outpoint: loadedOutpoints,
       end_hafaka: playlistItem.end_hafaka || null,
       sadnaInOuts: playlistItem.sadnaInOuts ? [...playlistItem.sadnaInOuts] : [],
       currentSadnaIndex: null,
+      currentInOutIndex: null,
       editingPlaylistIndex: index !== null ? index : this.state.editingPlaylistIndex,
       file_data: file_data,
       file_name: playlistItem.file_name,
-      hasUnsavedChanges: false
+      hasUnsavedChanges: false,
+      shiftAudio: playlistItem.shiftAudio || 0,
+      shiftVideo: playlistItem.shiftVideo || 0
     });
     
-    console.log('Set in/out points:', { inpoint: playlistItem.inpoint, outpoint: playlistItem.outpoint, end_hafaka: playlistItem.end_hafaka });
+    console.log('Set in/out points:', { inpoint: loadedInpoints, outpoint: loadedOutpoints, end_hafaka: playlistItem.end_hafaka });
     console.log('Set sadna pairs:', playlistItem.sadnaInOuts);
     console.log('Set file_data for editing:', file_data);
   }
@@ -810,8 +1091,18 @@ class Playouts extends Component {
     
     // Update HLS path if in/out are set, allowing 0
     if ((finalInpoint !== null && finalInpoint !== undefined) && (outpoint !== null && outpoint !== undefined)) {
-      const { file_path } = updatedPlaylist[editingPlaylistIndex];
-      updatedPlaylist[editingPlaylistIndex].hls_path = `https://src.bbdomain.org/${file_path}/clipFrom/${finalInpoint}/clipTo/${outpoint}/master.m3u8`;
+      const { file_path, shiftAudio, shiftVideo } = updatedPlaylist[editingPlaylistIndex];
+      
+      // Build shift path segment if needed: /shift/a{audio}/v{video}/
+      let shiftSegment = '';
+      if (shiftAudio !== 0 || shiftVideo !== 0) {
+        shiftSegment = '/shift';
+        if (shiftAudio && shiftAudio !== 0) shiftSegment += `/a${shiftAudio}`;
+        if (shiftVideo && shiftVideo !== 0) shiftSegment += `/v${shiftVideo}`;
+      }
+      
+      let hls_path = `https://src.bbdomain.org/${file_path}/clipFrom/${finalInpoint}/clipTo/${outpoint}${shiftSegment}/master.m3u8`;
+      updatedPlaylist[editingPlaylistIndex].hls_path = hls_path;
     }
     
     this.setState({ playlist: updatedPlaylist });
@@ -858,7 +1149,7 @@ class Playouts extends Component {
 
   render() {
     try {
-      const {isHls, inpoint, outpoint, end_hafaka, find_uid, autoplay, selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate, editingPlaylistIndex, showSettings, sadnaInOuts, currentSadnaIndex} = this.state;
+      const {isHls, inpoint, outpoint, end_hafaka, find_uid, autoplay, selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate, editingPlaylistIndex, showSettings, sadnaInOuts, currentSadnaIndex, currentInOutIndex, shiftAudio, shiftVideo} = this.state;
 
     let files_list = (files || []).map((data, i) => {
       if (!data || !data.source_id || !data.file_name) return null;
@@ -867,13 +1158,19 @@ class Playouts extends Component {
 
     const list = (playlist || []).map((data, i) => {
       if (!data) return null;
-      const {source_id, file_name, uid, duration, inpoint, outpoint, end_hafaka, sadnaInOuts} = data;
-      // live values while editing
-      const liveIn = (editingPlaylistIndex === i && (this.state.inpoint || this.state.inpoint === 0)) ? this.state.inpoint : inpoint;
+      const {source_id, file_name, uid, duration, inpoint, outpoint, end_hafaka, sadnaInOuts, shiftAudio, shiftVideo} = data;
+      
+      // live values while editing (now arrays)
+      const liveInArray = (editingPlaylistIndex === i) ? this.state.inpoint : (Array.isArray(inpoint) ? inpoint : []);
+      const liveOutArray = (editingPlaylistIndex === i) ? this.state.outpoint : (Array.isArray(outpoint) ? outpoint : []);
       const liveEnd = (editingPlaylistIndex === i && (this.state.end_hafaka || this.state.end_hafaka === 0)) ? this.state.end_hafaka : end_hafaka;
-      const liveOut = (editingPlaylistIndex === i && (this.state.outpoint || this.state.outpoint === 0)) ? this.state.outpoint : outpoint;
       const liveSadna = (editingPlaylistIndex === i) ? this.state.sadnaInOuts : (sadnaInOuts || []);
+      
+      // Use first in/out pair for display
+      const liveIn = liveInArray.length > 0 ? liveInArray[0] : null;
+      const liveOut = liveOutArray.length > 0 ? liveOutArray[0] : null;
       const clipDuration = this.calculateClipDuration(liveIn, liveEnd);
+      
       return (
         <Table.Row 
           key={i} 
@@ -881,9 +1178,15 @@ class Playouts extends Component {
         >
           <Table.Cell>{source_id}</Table.Cell>
           <Table.Cell>{file_name}</Table.Cell>
-          <Table.Cell className="time-column">{(liveIn || liveIn === 0) ? this.formatTime(liveIn) : '00:00:00'}</Table.Cell>
+          <Table.Cell className="time-column">
+            {liveInArray.length > 0 && liveIn !== null ? this.formatTime(liveIn) : '00:00:00'}
+            {liveInArray.length > 1 && <span style={{fontSize: '10px', color: '#666'}}> (+{liveInArray.length - 1})</span>}
+          </Table.Cell>
           <Table.Cell className="time-column">{(liveEnd || liveEnd === 0) ? this.formatTime(liveEnd) : '00:00:00'}</Table.Cell>
-          <Table.Cell className="time-column">{(liveOut || liveOut === 0) ? this.formatTime(liveOut) : '00:00:00'}</Table.Cell>
+          <Table.Cell className="time-column">
+            {liveOutArray.length > 0 && liveOut !== null ? this.formatTime(liveOut) : '00:00:00'}
+            {liveOutArray.length > 1 && <span style={{fontSize: '10px', color: '#666'}}> (+{liveOutArray.length - 1})</span>}
+          </Table.Cell>
           <Table.Cell className="time-column clip-duration">{this.formatTime(clipDuration)}</Table.Cell>
           <Table.Cell>{toHms(duration)}</Table.Cell>
           <Table.Cell>{uid}</Table.Cell>
@@ -892,6 +1195,8 @@ class Playouts extends Component {
               {liveSadna.length}
             </Label>
           </Table.Cell>
+          <Table.Cell style={{ textAlign: 'center', fontSize: '11px' }}>{shiftAudio || 0}</Table.Cell>
+          <Table.Cell style={{ textAlign: 'center', fontSize: '11px' }}>{shiftVideo || 0}</Table.Cell>
           <Table.Cell className="actions-cell">
             <div style={{ display: 'flex', gap: '4px' }}>
               <Button 
@@ -990,32 +1295,63 @@ class Playouts extends Component {
                     </div>
                   </div>
 
-                                    {/* IN/OUT Controls - Moved under the player and skip controls */}
+                                    {/* IN/OUT Controls - Multiple pairs support */}
                   {file_data && (
-                    <div style={{ margin: '8px 0', padding: '4px', textAlign: 'center' }}>
-                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                        <Button as='div' labelPosition='right' className="inout_btn">
-                          <Button icon color='blue' size='large' className="inout_btn" onClick={() => this.setIn()} />
-                          <Label as='a' basic pointing='left' onClick={() => this.jumpPoint(inpoint)} style={{ cursor: 'pointer' }}>
-                            { inpoint ? this.formatTime(inpoint) : "<- Set in" }
-                          </Label>
-                        </Button>
-                        <Button as='div' labelPosition='left' className="inout_btn">
+                    <div style={{ margin: '12px 0', padding: '8px', textAlign: 'center', backgroundColor: '#f0f8ff', borderRadius: '4px', border: '1px solid #b0d4f1' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <strong style={{ fontSize: '14px' }}>In/Out Points:</strong>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <Button size="tiny" color="blue" onClick={this.addInOutPair}>➕ Add Pair</Button>
+                          <Button size="tiny" color="red" onClick={this.clearInOutPairs} disabled={inpoint.length === 0}>Clear All</Button>
+                        </div>
+                      </div>
+                      
+                      <div style={{ marginBottom: '8px' }}>
+                        <Button as='div' labelPosition='left'>
                           <Label as='a' basic pointing='right' color='green'
-                                 onClick={() => this.jumpPoint(end_hafaka)} style={{ cursor: 'pointer' }}>
+                                 onClick={() => this.jumpPoint(end_hafaka)} style={{ cursor: end_hafaka ? 'pointer' : 'default' }}>
                             {end_hafaka ? this.formatTime(end_hafaka) : "Set end hafaka ->"}
                           </Label>
-                          <Button icon color='green' size='large' className="inout_btn" onClick={() => this.setEndHafaka()}/>
+                          <Button icon color='green' size='small' onClick={() => this.setEndHafaka()}/>
                         </Button>
-                        <Button as='div' labelPosition='left' className="inout_btn">
-                          <Label as='a' basic pointing='right' color={inpoint > outpoint ? 'red' : undefined}
-                                 onClick={() => this.jumpPoint(outpoint)} style={{ cursor: 'pointer' }}>
-                            {outpoint ? this.formatTime(outpoint) : "Set out ->"}
-                          </Label>
-                          <Button icon color='blue' size='large' className="inout_btn" onClick={() => this.setOut()}/>
-                        </Button>
-                        <Button icon color='red' size='small' onClick={() => this.setIn(null)} title="Clear in, out and end hafaka">✕</Button>
                       </div>
+                      
+                      {inpoint.length === 0 ? (
+                        <div style={{ padding: '8px', color: '#888', fontSize: '12px' }}>
+                          No in/out pairs yet. Click "Add Pair" to create one.
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '200px', overflowY: 'auto' }}>
+                          {inpoint.map((inVal, index) => {
+                            const outVal = outpoint[index];
+                            return (
+                              <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px', backgroundColor: currentInOutIndex === index ? '#e3f2fd' : 'white', borderRadius: '4px', border: '1px solid #ddd' }}>
+                                <span style={{ minWidth: '20px', fontWeight: 'bold', fontSize: '12px' }}>{index + 1}.</span>
+                                
+                                <Button as='div' labelPosition='right' size='mini'>
+                                  <Button icon color='blue' size='mini' onClick={() => this.setIn(index)} />
+                                  <Label as='a' basic pointing='left' onClick={() => inVal !== null && this.jumpPoint(inVal)} 
+                                         style={{ cursor: inVal !== null ? 'pointer' : 'default', fontSize: '11px', minWidth: '70px' }}>
+                                    {inVal !== null ? this.formatTime(inVal) : "Set in"}
+                          </Label>
+                        </Button>
+                                
+                                <Button as='div' labelPosition='left' size='mini'>
+                                  <Label as='a' basic pointing='right' onClick={() => outVal !== null && this.jumpPoint(outVal)} 
+                                         style={{ cursor: outVal !== null ? 'pointer' : 'default', fontSize: '11px', minWidth: '70px' }}>
+                                    {outVal !== null ? this.formatTime(outVal) : "Set out"}
+                                  </Label>
+                                  <Button icon color='blue' size='mini' onClick={() => this.setOut(index)} />
+                                </Button>
+                                
+                                <Button icon size='mini' color='red' onClick={() => this.removeInOutPair(index)} title="Remove this pair">
+                                  ✕
+                                </Button>
+                      </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1063,6 +1399,62 @@ class Playouts extends Component {
                           ))}
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {/* Shift Audio/Video Controls */}
+                  {file_data && (
+                    <div style={{ margin: '12px 0', padding: '8px', textAlign: 'center', backgroundColor: '#f0f8ff', borderRadius: '4px', border: '1px solid #b0d4f1' }}>
+                      <strong style={{ fontSize: '14px', display: 'block', marginBottom: '8px' }}>Audio/Video Shift (ms):</strong>
+                      <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Audio:</label>
+                          <Input
+                            type="number"
+                            value={shiftAudio}
+                            onChange={(e) => this.setState({ shiftAudio: parseInt(e.target.value) || 0 })}
+                            size="mini"
+                            style={{ width: '80px' }}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Video:</label>
+                          <Input
+                            type="number"
+                            value={shiftVideo}
+                            onChange={(e) => this.setState({ shiftVideo: parseInt(e.target.value) || 0 })}
+                            size="mini"
+                            style={{ width: '80px' }}
+                          />
+                        </div>
+                        <Button 
+                          size="mini" 
+                          color="blue" 
+                          onClick={() => {
+                            const {hls, file_data, shiftAudio, shiftVideo} = this.state;
+                            if (file_data && hls) {
+                              const path = file_data.source.converted.filename.split('/backup/files/sources/')[1];
+                              
+                              // Build shift path segment: /shift/a{audio}/v{video}/
+                              let shiftSegment = '';
+                              if (shiftAudio !== 0 || shiftVideo !== 0) {
+                                shiftSegment = '/shift';
+                                if (shiftAudio !== 0) shiftSegment += `/a${shiftAudio}`;
+                                if (shiftVideo !== 0) shiftSegment += `/v${shiftVideo}`;
+                              }
+                              
+                              let hls_source = `https://src.bbdomain.org/${path}${shiftSegment}/master.m3u8`;
+                              
+                              hls.loadSource(hls_source);
+                              this.setState({hls_source});
+                              console.log('Reloaded with shift:', hls_source);
+                            }
+                          }}
+                          disabled={!file_data}
+                        >
+                          🔄 Apply Shift
+                        </Button>
+                      </div>
                     </div>
                   )}
 
@@ -1222,10 +1614,11 @@ class Playouts extends Component {
                     <div style={{ padding: '2px 6px', backgroundColor: '#ffffff', border: '1px solid #dee2e6', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: '#666' }}>
                      Total: {toHms((playlist || []).map((r, idx) => {
                        if (!r) return 0;
-                       const liveIn = (editingPlaylistIndex === idx && (inpoint || inpoint === 0)) ? inpoint : r.inpoint;
+                       const liveInArray = (editingPlaylistIndex === idx) ? inpoint : (Array.isArray(r.inpoint) ? r.inpoint : []);
                        const liveEnd = (editingPlaylistIndex === idx && (end_hafaka || end_hafaka === 0)) ? end_hafaka : r.end_hafaka;
-                       if (liveIn !== null && liveIn !== undefined && liveEnd !== null && liveEnd !== undefined) {
-                         return (liveEnd - liveIn) / 1000;
+                       const firstIn = liveInArray.length > 0 ? liveInArray[0] : null;
+                       if (firstIn !== null && firstIn !== undefined && liveEnd !== null && liveEnd !== undefined) {
+                         return (liveEnd - firstIn) / 1000;
                        }
                        return Number(r.duration) || 0;
                    }).reduce((su, cur) => su + cur, 0))}
@@ -1252,6 +1645,8 @@ class Playouts extends Component {
                     <Table.HeaderCell>File Duration</Table.HeaderCell>
                     <Table.HeaderCell>Content UID</Table.HeaderCell>
                     <Table.HeaderCell>Sadna Pairs</Table.HeaderCell>
+                    <Table.HeaderCell>Shift Audio (ms)</Table.HeaderCell>
+                    <Table.HeaderCell>Shift Video (ms)</Table.HeaderCell>
                     <Table.HeaderCell>Actions</Table.HeaderCell>
                   </Table.Row>
                 </Table.Header>
