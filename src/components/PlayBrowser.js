@@ -457,7 +457,7 @@ class Playouts extends Component {
       // Safely load the source
       hls.loadSource(hls_source);
       console.log('Loaded source with shift:', hls_source);
-      this.setState({hls_source, file_source, file_data: data, file_name: data.file_name, disabled: false, inpoint: [], outpoint: [], end_hafaka: null, sadnaInOuts: [], currentSadnaIndex: null, currentInOutIndex: null, shiftAudio: 0, shiftVideo: 0});
+      this.setState({hls_source, file_source, file_data: data, file_name: data.file_name, disabled: false, inpoint: [], outpoint: [], end_hafaka: null, sadnaInOuts: [], currentSadnaIndex: null, currentInOutIndex: null, shiftAudio: 0, shiftVideo: 0, editingPlaylistIndex: null});
     } catch (error) {
       console.log("Error loading file:", error);
     }
@@ -772,6 +772,26 @@ class Playouts extends Component {
       }
       
       console.log(`VOD update complete: ${vodSuccessCount} success, ${vodFailCount} failed`);
+      
+      // Send POST request to playlist generate endpoint (via nginx proxy)
+      try {
+        console.log('Triggering playlist generation...');
+        const generateResponse = await fetch('/api/playlist/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (generateResponse.ok) {
+          console.log('✓ Playlist generation triggered successfully');
+        } else {
+          console.warn('⚠ Playlist generation endpoint returned error:', generateResponse.status);
+        }
+      } catch (generateError) {
+        console.error('✗ Failed to trigger playlist generation:', generateError);
+        // Continue anyway - don't block the success message
+      }
       
       // Show combined results
       const totalSuccess = companionSuccessCount + vodSuccessCount;
