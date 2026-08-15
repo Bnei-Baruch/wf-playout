@@ -21,6 +21,14 @@ import {
   toHms,
   vres_options
 } from "../shared/tools";
+import {
+  getCachedKeyframes,
+  getKeyframes,
+  isOnKeyframe,
+  preloadKeyframes,
+  snapMs,
+  stepKeyframe
+} from "../shared/keyframes";
 
 
 class Playouts extends Component {
@@ -72,7 +80,11 @@ class Playouts extends Component {
     currentSadnaIndex: null,
     currentInOutIndex: null,
     shiftAudio: 0,
-    shiftVideo: 0
+    shiftVideo: 0,
+    keyframes: null,        // Int32Array of keyframe start times (ms) for the loaded file
+    keyframeStatus: "",     // '' | 'loading' | 'ok' | 'unavailable'
+    keyframeCount: 0,
+    snapInfo: {}            // pair index -> {delta, status: 'kf'|'stale'|'pending'|'unavailable'}
   };
 
   componentDidMount() {
@@ -199,6 +211,74 @@ class Playouts extends Component {
     }
   };
 
+  // '/backup/files/sources/2016/11/11/x.mp4' -> '2016/11/11/x.mp4'. Works for both the workflow
+  // record and the synthetic file_data built by loadPlaylistItemToPlayer.
+  currentFilePath = () => {
+    const {file_data} = this.state;
+    const filename = file_data && file_data.source && file_data.source.converted && file_data.source.converted.filename;
+    if (!filename) return null;
+    const parts = filename.split('/backup/files/sources/');
+    return parts.length > 1 ? parts[1] : null;
+  };
+
+  currentFileDuration = () => {
+    const {file_data} = this.state;
+    const duration = file_data && file_data.source && file_data.source.converted && file_data.source.converted.duration;
+    return Number(duration) || 0;
+  };
+
+  // Fetch the keyframe index for the loaded file and flag any already-loaded in points that sit
+  // off a keyframe — that is how a playlist saved before this change announces itself.
+  loadKeyframesFor = (file_path, durationSec) => {
+    if (!file_path) {
+      this.setState({keyframes: null, keyframeStatus: 'unavailable', keyframeCount: 0});
+      return;
+    }
+    this.setState({keyframes: null, keyframeStatus: 'loading', keyframeCount: 0});
+    getKeyframes(file_path, durationSec).then(entry => {
+      if (this.currentFilePath() !== file_path) return;   // operator switched files mid-fetch
+      if (!entry.ok) {
+        this.setState({keyframes: null, keyframeStatus: 'unavailable', keyframeCount: 0});
+        return;
+      }
+      this.setState(prev => {
+        const snapInfo = {...prev.snapInfo};
+        prev.inpoint.forEach((value, i) => {
+          if (value === null || value === undefined) return;
+          const snapped = snapMs(entry.times, value);
+          if (snapped === value) snapInfo[i] = {delta: 0, status: 'kf'};
+          else snapInfo[i] = {delta: snapped - value, status: 'stale'};
+        });
+        return {keyframes: entry.times, keyframeStatus: 'ok', keyframeCount: entry.count, snapInfo};
+      });
+    });
+  };
+
+  // Single place that writes an in point together with its badge.
+  applyInPoint = (index, value, delta, status) => {
+    console.log(":: Set IN for pair", index, ":", value, "(kf delta:", delta, "ms, status:", status, ")");
+    this.setState(prev => {
+      const inpoint = [...prev.inpoint];
+      inpoint[index] = value;
+      return {
+        inpoint,
+        snapInfo: {...prev.snapInfo, [index]: {delta, status}},
+        currentInOutIndex: index,
+        hasUnsavedChanges: true
+      };
+    });
+  };
+
+  // Null-safe pair-level snap shared by setIn, savePlaylist and the export aligner.
+  snapPairIn = (inVal, outVal, times) => {
+    if (inVal === null || inVal === undefined || !times) return inVal;
+    const snapped = snapMs(times, inVal);
+    if (snapped === inVal) return inVal;
+    // Never let a snap invert or collapse a pair.
+    if (outVal !== null && outVal !== undefined && outVal - snapped < 100) return inVal;
+    return snapped;
+  };
+
   setIn = (index) => {
     if (index === null) {
       // Clear all in/out points
@@ -229,25 +309,76 @@ class Playouts extends Component {
         sadnaInOuts: [],
         currentSadnaIndex: null,
         currentInOutIndex: null,
+        snapInfo: {},
         playlist: updatedPlaylist,
         hasUnsavedChanges: true
       });
       return;
     }
     
-    let currentTime = this.playerRef.current.currentTime;
-    let alignedTime = Math.floor(currentTime) * 1000;
-    console.log(":: Set IN for pair", index, ":", alignedTime, "(original:", currentTime * 1000, ")");
-    
-    const { inpoint } = this.state;
-    const updatedInpoints = [...inpoint];
-    updatedInpoints[index] = alignedTime;
-    
-    this.setState({ 
-      inpoint: updatedInpoints, 
-      currentInOutIndex: index,
-      hasUnsavedChanges: true 
+    const currentTime = this.playerRef.current.currentTime;
+    const flooredTime = Math.floor(currentTime) * 1000;
+    const file_path = this.currentFilePath();
+    const cached = getCachedKeyframes(file_path);
+
+    // Fast path — the index was prefetched when the file loaded, so this is the normal case.
+    if (cached && cached.ok) {
+      const snapped = this.snapPairIn(flooredTime, this.state.outpoint[index], cached.times);
+      this.applyInPoint(index, snapped, snapped - flooredTime, 'kf');
+      return;
+    }
+
+    // Not ready yet: store the floored value now and patch it when the index arrives.
+    this.applyInPoint(index, flooredTime, 0, cached ? 'unavailable' : 'pending');
+    if (cached) return;   // known-bad file, do not refetch on every click
+
+    getKeyframes(file_path, this.currentFileDuration()).then(entry => {
+      if (this.currentFilePath() !== file_path) return;         // operator switched files
+      if (this.state.inpoint[index] !== flooredTime) return;    // value changed meanwhile
+      if (!entry.ok) {
+        this.setState(prev => ({snapInfo: {...prev.snapInfo, [index]: {delta: 0, status: 'unavailable'}}}));
+        return;
+      }
+      const snapped = this.snapPairIn(flooredTime, this.state.outpoint[index], entry.times);
+      this.applyInPoint(index, snapped, snapped - flooredTime, 'kf');
     });
+  };
+
+  // Step an in point to the adjacent keyframe (the nudge buttons on the pair row).
+  nudgeIn = (index, dir) => {
+    const {keyframes, inpoint, outpoint} = this.state;
+    const current = inpoint[index];
+    if (!keyframes || current === null || current === undefined) return;
+
+    const stepped = stepKeyframe(keyframes, current, dir);
+    if (stepped === current) return;
+    if (outpoint[index] !== null && outpoint[index] !== undefined && outpoint[index] - stepped < 100) {
+      console.log(":: Nudge IN rejected for pair", index, "- would collapse the pair");
+      return;
+    }
+    console.log(":: Nudge IN for pair", index, ":", current, "->", stepped);
+    this.setState(prev => {
+      const updated = [...prev.inpoint];
+      updated[index] = stepped;
+      return {
+        inpoint: updated,
+        snapInfo: {...prev.snapInfo, [index]: {delta: 0, status: 'kf'}},
+        currentInOutIndex: index,
+        hasUnsavedChanges: true
+      };
+    });
+    this.jumpPoint(stepped);
+  };
+
+  // Walk the playhead one keyframe at a time. The player always holds the unclipped file, so
+  // its timeline and the keyframe list share an origin.
+  skipToKeyframe = (dir) => {
+    const {keyframes} = this.state;
+    if (!keyframes || !this.playerRef.current) return;
+    const currentMs = Math.round(this.playerRef.current.currentTime * 1000);
+    const target = stepKeyframe(keyframes, currentMs, dir);
+    console.log(":: Jump to keyframe:", currentMs, "->", target);
+    this.jumpPoint(target);
   };
 
   setOut = (index) => {
@@ -302,7 +433,7 @@ class Playouts extends Component {
   };
 
   removeInOutPair = (index) => {
-    const { inpoint, outpoint, currentInOutIndex } = this.state;
+    const { inpoint, outpoint, currentInOutIndex, snapInfo } = this.state;
     const updatedIn = inpoint.filter((_, i) => i !== index);
     const updatedOut = outpoint.filter((_, i) => i !== index);
     let newCurrentIndex = currentInOutIndex;
@@ -311,21 +442,30 @@ class Playouts extends Component {
     } else if (currentInOutIndex > index) {
       newCurrentIndex = currentInOutIndex - 1;
     }
-    this.setState({ 
-      inpoint: updatedIn, 
+    // Badges are keyed by pair index, so they have to shift down with the pairs.
+    const updatedSnapInfo = {};
+    Object.keys(snapInfo).forEach(key => {
+      const i = Number(key);
+      if (i < index) updatedSnapInfo[i] = snapInfo[key];
+      else if (i > index) updatedSnapInfo[i - 1] = snapInfo[key];
+    });
+    this.setState({
+      inpoint: updatedIn,
       outpoint: updatedOut,
       currentInOutIndex: newCurrentIndex,
-      hasUnsavedChanges: true 
+      snapInfo: updatedSnapInfo,
+      hasUnsavedChanges: true
     });
     console.log(":: Removed in/out pair at index:", index);
   };
 
   clearInOutPairs = () => {
-    this.setState({ 
-      inpoint: [], 
+    this.setState({
+      inpoint: [],
       outpoint: [],
       currentInOutIndex: null,
-      hasUnsavedChanges: true 
+      snapInfo: {},
+      hasUnsavedChanges: true
     });
     console.log(":: Cleared all in/out pairs");
   };
@@ -457,7 +597,8 @@ class Playouts extends Component {
       // Safely load the source
       hls.loadSource(hls_source);
       console.log('Loaded source with shift:', hls_source);
-      this.setState({hls_source, file_source, file_data: data, file_name: data.file_name, disabled: false, inpoint: [], outpoint: [], end_hafaka: null, sadnaInOuts: [], currentSadnaIndex: null, currentInOutIndex: null, shiftAudio: 0, shiftVideo: 0, editingPlaylistIndex: null});
+      this.setState({hls_source, file_source, file_data: data, file_name: data.file_name, disabled: false, inpoint: [], outpoint: [], end_hafaka: null, sadnaInOuts: [], currentSadnaIndex: null, currentInOutIndex: null, shiftAudio: 0, shiftVideo: 0, editingPlaylistIndex: null, snapInfo: {}});
+      this.loadKeyframesFor(path, data.source.converted.duration);
     } catch (error) {
       console.log("Error loading file:", error);
     }
@@ -550,11 +691,22 @@ class Playouts extends Component {
 
     // Build the final playlist synchronously with any live edits applied
     let finalPlaylist = playlist;
+    let snappedIn = inpoint;
+    let snapApplied = false;
     if (editingPlaylistIndex !== null && editingPlaylistIndex !== undefined && playlist[editingPlaylistIndex]) {
       const updated = [...playlist];
+
+      // Migrate in points saved before keyframe snapping existed, so that what was previewed
+      // and what gets exported are the same cut.
+      const kf = getCachedKeyframes(playlist[editingPlaylistIndex].file_path);
+      snapApplied = !!(kf && kf.ok);
+      snappedIn = snapApplied ? inpoint.map((v, i) => this.snapPairIn(v, outpoint[i], kf.times)) : [...inpoint];
+      const snapMoved = snappedIn.filter((v, i) => v !== inpoint[i]).length;
+      if (snapMoved) console.log(":: Save: keyframe-aligned", snapMoved, "in point(s)", inpoint, "->", snappedIn);
+
       updated[editingPlaylistIndex] = {
         ...updated[editingPlaylistIndex],
-        inpoint: [...inpoint],
+        inpoint: [...snappedIn],
         outpoint: [...outpoint],
         end_hafaka,
         sadnaInOuts: [...sadnaInOuts],
@@ -562,7 +714,7 @@ class Playouts extends Component {
         shiftVideo: shiftVideo || 0
       };
       // Update HLS path if we have valid first in/out pair (allow inpoint=0)
-      if (inpoint.length > 0 && inpoint[0] !== null && inpoint[0] !== undefined && 
+      if (snappedIn.length > 0 && snappedIn[0] !== null && snappedIn[0] !== undefined &&
           outpoint.length > 0 && outpoint[0] !== null && outpoint[0] !== undefined) {
         const { file_path } = updated[editingPlaylistIndex];
         
@@ -574,7 +726,7 @@ class Playouts extends Component {
           if (shiftVideo !== 0) shiftSegment += `/v${shiftVideo}`;
         }
         
-        let hls_path = `https://src.bbdomain.org/${file_path}/clipFrom/${inpoint[0]}/clipTo/${outpoint[0]}${shiftSegment}/master.m3u8`;
+        let hls_path = `https://src.bbdomain.org/${file_path}/clipFrom/${snappedIn[0]}/clipTo/${outpoint[0]}${shiftSegment}/master.m3u8`;
         updated[editingPlaylistIndex].hls_path = hls_path;
       } else {
         // Also update HLS path for full file if no in/out points
@@ -619,7 +771,15 @@ class Playouts extends Component {
       this.setState(prev => {
         const updatedDb = { ...(prev.playlist_db || {}) };
         updatedDb[playlist_name] = { autoplay, playlist: finalPlaylist, date, total };
-        return { playlist: finalPlaylist, playlist_db: updatedDb, hasUnsavedChanges: false };
+        // Keep the live editing state on the values that were actually persisted, so the
+        // badges settle on 'kf' after a save that migrated an older row.
+        const snapInfo = {...prev.snapInfo};
+        if (snapApplied) {
+          snappedIn.forEach((value, i) => {
+            if (value !== null && value !== undefined) snapInfo[i] = {delta: 0, status: 'kf'};
+          });
+        }
+        return { playlist: finalPlaylist, playlist_db: updatedDb, hasUnsavedChanges: false, inpoint: [...snappedIn], snapInfo };
       });
       // Also re-fetch from server to ensure canonical data
       try {
@@ -630,19 +790,89 @@ class Playouts extends Component {
     } )
   };
 
+  // Keyframe-align every in point across all saved playlists before exporting. Returns a copy —
+  // it never mutates state and never persists, so a playlist saved before this change is fixed
+  // on the way out but is only migrated permanently when an operator re-saves it.
+  // Never throws: a file whose keyframe index cannot be fetched is exported as authored.
+  alignPlaylistDbToKeyframes = async (playlist_db) => {
+    const db = {};
+    const adjustments = [];
+    const unavailable = [];
+    const shiftWarnings = [];
+
+    const names = Object.keys(playlist_db || {});
+    const sources = [];
+    const seen = new Set();
+    names.forEach(name => {
+      const items = (playlist_db[name] && playlist_db[name].playlist) || [];
+      items.forEach(item => {
+        if (item && item.file_path && !seen.has(item.file_path)) {
+          seen.add(item.file_path);
+          sources.push({file_path: item.file_path, duration: item.duration});
+        }
+      });
+    });
+
+    try {
+      await preloadKeyframes(sources, 4, 30000);
+    } catch (e) {
+      console.log(':: Keyframe preload failed, exporting as authored:', e);
+    }
+
+    names.forEach(name => {
+      const playlistData = playlist_db[name] || {};
+      const items = playlistData.playlist || [];
+      db[name] = {
+        ...playlistData,
+        playlist: items.map(item => {
+          if (!item || !Array.isArray(item.inpoint)) return item;
+          const entry = getCachedKeyframes(item.file_path);
+          if (!entry || !entry.ok) {
+            if (item.file_path && unavailable.indexOf(item.file_path) === -1) unavailable.push(item.file_path);
+            return item;
+          }
+          const outpoints = Array.isArray(item.outpoint) ? item.outpoint : [];
+          const snapped = item.inpoint.map((v, i) => this.snapPairIn(v, outpoints[i], entry.times));
+          const moved = snapped.filter((v, i) => v !== item.inpoint[i]).length;
+          if (!moved) return item;
+
+          snapped.forEach((v, i) => {
+            if (v !== item.inpoint[i]) {
+              adjustments.push({playlistName: name, file_name: item.file_name, pair: i, from: item.inpoint[i], to: v, delta: v - item.inpoint[i]});
+            }
+          });
+          // A hand-dialled shift entered to compensate for this very skew will now
+          // double-correct. Surface it rather than silently overwriting the operator's value.
+          if (item.shiftAudio || item.shiftVideo) {
+            shiftWarnings.push(`${name} / ${item.file_name} (a${item.shiftAudio || 0} v${item.shiftVideo || 0})`);
+          }
+          return {...item, inpoint: snapped};
+        })
+      };
+    });
+
+    console.log(":: Keyframe align:", adjustments.length, "adjusted,", unavailable.length, "file(s) unavailable");
+    return {db, adjustments, unavailable, shiftWarnings};
+  };
+
   generatePlaylist = async () => {
     try {
       const { playlist_db } = this.state;
-      
+
+      // Align first: the Companion loop below rebases sadna cues against item.inpoint[0], so it
+      // has to read the aligned values or every cue drifts by the snap delta.
+      const alignment = await this.alignPlaylistDbToKeyframes(playlist_db);
+      const aligned_db = alignment.db;
+
       // Prepare companion variables for all playlists
       const companionVariables = {};
       
       // Get all playlist names and sort them to ensure consistent numbering
-      const playlistNames = Object.keys(playlist_db).sort();
-      
+      const playlistNames = Object.keys(aligned_db).sort();
+
       playlistNames.forEach((playlistName, playlistIndex) => {
         const playlistNum = playlistIndex + 1; // 1-indexed
-        const playlistData = playlist_db[playlistName];
+        const playlistData = aligned_db[playlistName];
         const items = playlistData.playlist || [];
         
         // Collect all sadna pairs from all items in this playlist
@@ -671,9 +901,11 @@ class Playouts extends Component {
         for (let i = 1; i <= 50; i++) {
           const pairIndex = i - 1;
           if (pairIndex < allSadnaPairs.length) {
-            // Convert milliseconds to seconds for companion (relative to clip start)
-            companionVariables[`Ply${playlistNum}SadnaIn_${i}`] = Math.floor(allSadnaPairs[pairIndex].in / 1000);
-            companionVariables[`Ply${playlistNum}SadnaOut_${i}`] = Math.floor(allSadnaPairs[pairIndex].out / 1000);
+            // Convert milliseconds to seconds for companion (relative to clip start).
+            // Clamped: snapping IN forward can push a cue that sat right on the in point
+            // marginally negative.
+            companionVariables[`Ply${playlistNum}SadnaIn_${i}`] = Math.max(0, Math.floor(allSadnaPairs[pairIndex].in / 1000));
+            companionVariables[`Ply${playlistNum}SadnaOut_${i}`] = Math.max(0, Math.floor(allSadnaPairs[pairIndex].out / 1000));
           } else {
             // Pad with 0
             companionVariables[`Ply${playlistNum}SadnaIn_${i}`] = 0;
@@ -739,8 +971,8 @@ class Playouts extends Component {
       }
       
       for (const playlistName of playlistNames) {
-        const playlistData = playlist_db[playlistName];
-        
+        const playlistData = aligned_db[playlistName];
+
         try {
           // Generate VOD JSON structure
           const vodJson = this.generateVODJson(playlistName, playlistData);
@@ -793,12 +1025,29 @@ class Playouts extends Component {
         // Continue anyway - don't block the success message
       }
       
+      // Keyframe alignment summary — tells the operator which rows to re-save and which still
+      // carry a manual shift that may now be double-correcting.
+      let alignMsg = '';
+      if (alignment.adjustments.length > 0) {
+        const maxDelta = alignment.adjustments.reduce((m, a) => Math.abs(a.delta) > Math.abs(m) ? a.delta : m, 0);
+        alignMsg += `\n\n⌁ Keyframe alignment: ${alignment.adjustments.length} in point(s) snapped (max ${maxDelta > 0 ? '+' : ''}${maxDelta}ms)`;
+        alignMsg += `\n   Re-save those playlists to make the alignment permanent.`;
+      }
+      if (alignment.unavailable.length > 0) {
+        alignMsg += `\n\n⚠ No keyframe data for ${alignment.unavailable.length} file(s) — exported as authored:\n   ${alignment.unavailable.slice(0, 3).join('\n   ')}`;
+        if (alignment.unavailable.length > 3) alignMsg += `\n   ... and ${alignment.unavailable.length - 3} more`;
+      }
+      if (alignment.shiftWarnings.length > 0) {
+        alignMsg += `\n\n⚠ Review manual A/V shift on ${alignment.shiftWarnings.length} snapped item(s):\n   ${alignment.shiftWarnings.slice(0, 3).join('\n   ')}`;
+        if (alignment.shiftWarnings.length > 3) alignMsg += `\n   ... and ${alignment.shiftWarnings.length - 3} more`;
+      }
+
       // Show combined results
       const totalSuccess = companionSuccessCount + vodSuccessCount;
       const totalFail = companionFailCount + vodFailCount;
-      
+
       if (totalFail === 0) {
-        alert(`✓ Successfully generated playlists!\n\nCompanion: ${companionSuccessCount} variables\nVOD: ${vodSuccessCount} JSON files`);
+        alert(`✓ Successfully generated playlists!\n\nCompanion: ${companionSuccessCount} variables\nVOD: ${vodSuccessCount} JSON files${alignMsg}`);
       } else {
         let errorMsg = `Generated playlists with some errors:\n\n`;
         errorMsg += `✓ Companion: ${companionSuccessCount} success, ${companionFailCount} failed\n`;
@@ -813,8 +1062,8 @@ class Playouts extends Component {
           errorMsg += `\nVOD errors:\n${vodErrors.slice(0, 3).join('\n')}`;
           if (vodErrors.length > 3) errorMsg += `\n... and ${vodErrors.length - 3} more`;
         }
-        
-        alert(errorMsg);
+
+        alert(errorMsg + alignMsg);
       }
     } catch (error) {
       alert(`Failed to generate playlists: ${error.message}`);
@@ -897,6 +1146,7 @@ class Playouts extends Component {
       sadnaInOuts: [],
       currentSadnaIndex: null,
       currentInOutIndex: null,
+      snapInfo: {},
       forwardSkipValue: ""
     });
 
@@ -972,19 +1222,41 @@ class Playouts extends Component {
   }
 
   // Helper function to format time in HH:MM:SS format
-  formatTime = (milliseconds) => {
-    if (!milliseconds || milliseconds < 0) return '00:00:00';
+  // withMs matters for in points: they are keyframe-aligned and therefore rarely land on a
+  // whole second, and truncating would hide exactly what the operator needs to see.
+  formatTime = (milliseconds, withMs = false) => {
+    if (!milliseconds || milliseconds < 0) return withMs ? '00:00:00.000' : '00:00:00';
     // Convert milliseconds to seconds first
     const seconds = Math.floor(milliseconds / 1000);
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    const hms = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    return withMs ? `${hms}.${Math.floor(milliseconds % 1000).toString().padStart(3, '0')}` : hms;
+  }
+
+  // Badge showing whether an in point sits on a video keyframe. 'stale' is what every playlist
+  // saved before keyframe snapping will show until it is re-saved.
+  renderSnapBadge = (index) => {
+    const info = this.state.snapInfo[index];
+    if (!info) return null;
+    const base = {fontSize: '9px', padding: '2px 4px', borderRadius: '3px', whiteSpace: 'nowrap'};
+    if (info.status === 'pending') return <span style={{...base, background: '#eee', color: '#888'}} title="Loading keyframe index…">KF…</span>;
+    if (info.status === 'unavailable') return <span style={{...base, background: '#eee', color: '#888'}} title="No keyframe data for this file — in point exported as authored">KF?</span>;
+    if (info.status === 'stale') {
+      return <span style={{...base, background: '#ffebee', color: '#c62828'}}
+                   title="Saved in point is not on a keyframe — press Save to align it">
+        off-KF {info.delta > 0 ? '+' : ''}{info.delta}ms
+      </span>;
+    }
+    if (info.delta === 0) return <span style={{...base, background: '#e8f5e9', color: '#2e7d32'}} title="On a video keyframe — audio and video will be in sync">KF ✓</span>;
+    return <span style={{...base, background: '#fff8e1', color: '#ef6c00'}} title="Moved back to the nearest earlier video keyframe">KF {info.delta > 0 ? '+' : ''}{info.delta}ms</span>;
   }
 
   // Function to jump player to specific time
   jumpPoint = (timeInMilliseconds) => {
-    if (!timeInMilliseconds || !this.playerRef.current) return;
+    // 0 is a legitimate target — it is the first keyframe.
+    if (timeInMilliseconds === null || timeInMilliseconds === undefined || !this.playerRef.current) return;
     
     // Convert milliseconds to seconds for the video player
     const timeInSeconds = timeInMilliseconds / 1000;
@@ -1072,9 +1344,13 @@ class Playouts extends Component {
       file_name: playlistItem.file_name,
       hasUnsavedChanges: false,
       shiftAudio: playlistItem.shiftAudio || 0,
-      shiftVideo: playlistItem.shiftVideo || 0
+      shiftVideo: playlistItem.shiftVideo || 0,
+      snapInfo: {}
     });
-    
+
+    // Flags in points saved before keyframe snapping existed, so they show up as 'off-KF'.
+    this.loadKeyframesFor(playlistItem.file_path, playlistItem.duration);
+
     console.log('Set in/out points:', { inpoint: loadedInpoints, outpoint: loadedOutpoints, end_hafaka: playlistItem.end_hafaka });
     console.log('Set sadna pairs:', playlistItem.sadnaInOuts);
     console.log('Set file_data for editing:', file_data);
@@ -1169,7 +1445,7 @@ class Playouts extends Component {
 
   render() {
     try {
-      const {isHls, inpoint, outpoint, end_hafaka, find_uid, autoplay, selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate, editingPlaylistIndex, showSettings, sadnaInOuts, currentSadnaIndex, currentInOutIndex, shiftAudio, shiftVideo} = this.state;
+      const {isHls, inpoint, outpoint, end_hafaka, find_uid, autoplay, selected_playlist, playlist_db, playlist_name, file_data, lang_options, video_options, selected_lang, files, selected_video, playlist, playlistDate, editingPlaylistIndex, showSettings, sadnaInOuts, currentSadnaIndex, currentInOutIndex, shiftAudio, shiftVideo, keyframeStatus, keyframeCount} = this.state;
 
     let files_list = (files || []).map((data, i) => {
       if (!data || !data.source_id || !data.file_name) return null;
@@ -1301,6 +1577,18 @@ class Playouts extends Component {
                       <Button onClick={() => this.skipTime(300)} size="small">+5m</Button>
                       <Button onClick={() => this.jumpToEnd()} size="small" color="blue">End</Button>
                     </div>
+                    {/* Keyframe stepping - park the playhead on a cut point before pressing IN */}
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px', marginTop: '6px' }}>
+                      <Button onClick={() => this.skipToKeyframe(-1)} size="small" color="teal"
+                              disabled={keyframeStatus !== 'ok'} title="Jump to previous keyframe">⏮ KF</Button>
+                      <Button onClick={() => this.skipToKeyframe(1)} size="small" color="teal"
+                              disabled={keyframeStatus !== 'ok'} title="Jump to next keyframe">KF ⏭</Button>
+                      <span style={{ fontSize: '11px', color: '#888', marginLeft: '6px' }}>
+                        {keyframeStatus === 'ok' ? `${keyframeCount} keyframes`
+                          : keyframeStatus === 'loading' ? 'keyframes loading…'
+                          : keyframeStatus === 'unavailable' ? 'keyframes unavailable' : ''}
+                      </span>
+                    </div>
                     {/* Custom forward skip - keeps existing controls unchanged */}
                     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
                       <Input
@@ -1350,12 +1638,23 @@ class Playouts extends Component {
                                 
                                 <Button as='div' labelPosition='right' size='mini'>
                                   <Button icon color='blue' size='mini' onClick={() => this.setIn(index)} />
-                                  <Label as='a' basic pointing='left' onClick={() => inVal !== null && this.jumpPoint(inVal)} 
-                                         style={{ cursor: inVal !== null ? 'pointer' : 'default', fontSize: '11px', minWidth: '70px' }}>
-                                    {inVal !== null ? this.formatTime(inVal) : "Set in"}
+                                  <Label as='a' basic pointing='left' onClick={() => inVal !== null && this.jumpPoint(inVal)}
+                                         style={{ cursor: inVal !== null ? 'pointer' : 'default', fontSize: '11px', minWidth: '88px' }}>
+                                    {inVal !== null && inVal !== undefined ? this.formatTime(inVal, true) : "Set in"}
                           </Label>
                         </Button>
-                                
+
+                                {/* Step the in point to the adjacent keyframe */}
+                                <Button.Group size='mini'>
+                                  <Button icon size='mini' compact title="Previous keyframe"
+                                          disabled={keyframeStatus !== 'ok' || inVal === null || inVal === undefined}
+                                          onClick={() => this.nudgeIn(index, -1)}>◀</Button>
+                                  <Button icon size='mini' compact title="Next keyframe"
+                                          disabled={keyframeStatus !== 'ok' || inVal === null || inVal === undefined}
+                                          onClick={() => this.nudgeIn(index, 1)}>▶</Button>
+                                </Button.Group>
+                                {this.renderSnapBadge(index)}
+
                                 <Button as='div' labelPosition='left' size='mini'>
                                   <Label as='a' basic pointing='right' onClick={() => outVal !== null && this.jumpPoint(outVal)} 
                                          style={{ cursor: outVal !== null ? 'pointer' : 'default', fontSize: '11px', minWidth: '70px' }}>
